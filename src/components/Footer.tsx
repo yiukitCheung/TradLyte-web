@@ -11,7 +11,7 @@ const Footer = () => {
                 <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
                   <TrendingUp className="h-5 w-5 text-primary-foreground" />
                 </div>
-                <span className="text-lg font-display font-bold text-foreground">Mindful Finance</span>
+                <span className="text-xl font-display text-primary">TradLyte</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Building wealth with clarity, purpose, and mindfulness.
@@ -51,7 +51,7 @@ const Footer = () => {
 
           <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2025 Mindful Finance. All rights reserved.
+              © 2025 TradLyte. All rights reserved.
             </p>
             <p className="text-sm text-muted-foreground flex items-center gap-1">
               Made with <Heart className="h-4 w-4 text-accent fill-accent" /> for mindful investors

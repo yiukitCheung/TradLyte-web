@@ -9,7 +9,7 @@ const Header = () => {
           <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
             <TrendingUp className="h-6 w-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-display font-bold text-foreground">Mindful Finance</span>
+          <span className="text-2xl font-display text-primary">TradLyte</span>
         </div>
         
         <nav className="hidden md:flex items-center gap-6">
