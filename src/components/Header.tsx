@@ -18,14 +18,14 @@ const Header = () => {
         
         {user && (
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Dashboard
-            </a>
+            </Link>
+            <Link to="/strategy-builder" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              Strategy Builder
+            </Link>
             <a href="#goals" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Goals
-            </a>
-            <a href="#strategy" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              Strategy
             </a>
             <a href="#journal" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Journal
