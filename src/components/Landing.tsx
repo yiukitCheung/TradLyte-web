@@ -111,46 +111,117 @@ const Landing = () => {
           </div>
         </div>
 
-        {/* Right Visual - Bento Grid */}
-        <div className="relative z-10 hidden lg:flex items-center justify-center px-8 py-20">
-          <div className="grid grid-cols-2 gap-4 w-full max-w-xl animate-slide-up">
-            {/* Card 1 - Stats */}
-            <div className="col-span-2 p-8 rounded-2xl bg-card/80 backdrop-blur-xl border border-border shadow-card hover:shadow-elegant transition-all duration-300 group">
-              <div className="flex items-center justify-between mb-6">
-                <BarChart3 className="h-8 w-8 text-primary" />
+        {/* Right Visual - Enhanced Bento Grid */}
+        <div className="relative z-10 hidden lg:flex items-center justify-center px-12 py-20">
+          <div className="grid grid-cols-2 gap-6 w-full max-w-2xl animate-slide-up">
+            {/* Card 1 - Main Stats with Chart Visual */}
+            <div className="col-span-2 p-10 rounded-3xl bg-card/90 backdrop-blur-xl border-2 border-border shadow-elegant hover:shadow-[0_20px_70px_-15px_hsl(var(--primary)/0.3)] transition-all duration-500 group">
+              <div className="flex items-start justify-between mb-8">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
+                    <BarChart3 className="h-5 w-5" />
+                    <span>Platform Growth</span>
+                  </div>
+                  <div>
+                    <div className="text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent group-hover:scale-105 transition-transform inline-block">$2.4M</div>
+                    <div className="text-base text-muted-foreground mt-1">Total Wealth Tracked</div>
+                  </div>
+                </div>
+                <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:rotate-12 transition-transform duration-500">
+                  <TrendingUp className="h-10 w-10 text-primary" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Growth Progress</span>
+                  <span className="font-semibold text-primary">75%</span>
+                </div>
+                <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-primary w-3/4 rounded-full animate-pulse"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2s_infinite]"></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="text-sm">
+                    <div className="text-muted-foreground">This month</div>
+                    <div className="font-semibold text-foreground">+$284K</div>
+                  </div>
+                  <div className="text-sm">
+                    <div className="text-muted-foreground">Active strategies</div>
+                    <div className="font-semibold text-foreground">1,247</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2 - Returns Highlight */}
+            <div className="p-8 rounded-3xl bg-gradient-primary text-white shadow-[0_20px_50px_-12px_hsl(var(--primary)/0.4)] hover:scale-105 hover:rotate-2 transition-all duration-500 group relative overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+              <div className="relative z-10">
+                <TrendingUp className="h-8 w-8 mb-6 group-hover:translate-y-[-4px] transition-transform" />
+                <div className="text-5xl font-bold mb-2">+127%</div>
+                <div className="text-base opacity-90">Avg. Returns</div>
+                <div className="mt-6 pt-4 border-t border-white/20">
+                  <div className="text-sm opacity-80">vs market: +89%</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3 - Active Users */}
+            <div className="p-8 rounded-3xl bg-card/90 backdrop-blur-xl border-2 border-border hover:border-primary/40 hover:scale-105 transition-all duration-500 group shadow-lg">
+              <div className="relative">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Target className="h-7 w-7 text-primary" />
+                </div>
+                <div className="text-5xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">10K+</div>
+                <div className="text-base text-muted-foreground mb-4">Active Users</div>
+                <div className="flex -space-x-2">
+                  {[1, 2, 3].map((i) => (
+                    <div 
+                      key={i} 
+                      className="w-8 h-8 rounded-full border-2 border-card bg-gradient-to-br from-primary to-accent"
+                    ></div>
+                  ))}
+                  <div className="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center text-xs font-bold">
+                    +
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4 - Feature Highlight - Reflection */}
+            <div className="col-span-2 p-8 rounded-3xl bg-gradient-to-br from-accent/20 via-primary/10 to-transparent border-2 border-primary/20 hover:border-primary/50 hover:shadow-elegant transition-all duration-500 group">
+              <div className="flex items-start gap-6">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shadow-lg">
+                  <BookOpen className="h-8 w-8 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-xl text-foreground mb-2">Reflection Journal</div>
+                  <div className="text-muted-foreground mb-4">Track your growth mindset and align wealth with values</div>
+                  <div className="flex gap-2">
+                    <span className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary font-medium">Daily insights</span>
+                    <span className="text-xs px-3 py-1.5 rounded-full bg-accent/10 text-accent font-medium">Wisdom quotes</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5 - Strategy Sandbox - New */}
+            <div className="col-span-2 p-8 rounded-3xl bg-card/90 backdrop-blur-xl border-2 border-border hover:border-accent/40 transition-all duration-500 group shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Target className="h-6 w-6 text-accent" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-lg text-foreground">Strategy Sandbox</div>
+                      <div className="text-sm text-muted-foreground">Test without risk</div>
+                    </div>
+                  </div>
+                </div>
                 <div className="text-right">
-                  <div className="text-3xl font-bold text-foreground group-hover:text-primary transition-colors">$2.4M</div>
-                  <div className="text-sm text-muted-foreground">Total Growth</div>
-                </div>
-              </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-primary w-3/4 rounded-full"></div>
-              </div>
-            </div>
-
-            {/* Card 2 - Quick Stat */}
-            <div className="p-6 rounded-2xl bg-gradient-primary text-white shadow-elegant hover:scale-105 transition-transform duration-300">
-              <TrendingUp className="h-6 w-6 mb-4" />
-              <div className="text-4xl font-bold mb-1">+127%</div>
-              <div className="text-sm opacity-90">Avg. Returns</div>
-            </div>
-
-            {/* Card 3 - Users */}
-            <div className="p-6 rounded-2xl bg-card/80 backdrop-blur-xl border border-border hover:scale-105 transition-transform duration-300">
-              <Target className="h-6 w-6 text-primary mb-4" />
-              <div className="text-4xl font-bold text-foreground mb-1">10K+</div>
-              <div className="text-sm text-muted-foreground">Active Users</div>
-            </div>
-
-            {/* Card 4 - Feature Highlight */}
-            <div className="col-span-2 p-6 rounded-2xl bg-card/80 backdrop-blur-xl border border-primary/20 hover:border-primary/40 transition-all duration-300">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <BookOpen className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <div className="font-semibold text-foreground">Reflection Journal</div>
-                  <div className="text-sm text-muted-foreground">Track your growth mindset</div>
+                  <div className="text-3xl font-bold text-accent">95%</div>
+                  <div className="text-xs text-muted-foreground">Success rate</div>
                 </div>
               </div>
             </div>
