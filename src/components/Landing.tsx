@@ -363,16 +363,6 @@ const Landing = () => {
               <span className="text-sm text-accent font-medium">Passive Income Ready</span>
             </div>
 
-            {/* Feature 5 - Wisdom Design */}
-            <div className="md:col-span-2 group p-8 rounded-3xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20 hover:border-primary/40 transition-all duration-500">
-              <div className="w-14 h-14 rounded-xl bg-gradient-primary flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-all">
-                <Sparkles className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="text-xl font-display font-bold text-foreground mb-3">Wisdom-Infused Design</h3>
-              <p className="text-sm text-muted-foreground">
-                Quotes from investors and philosophers instill resilience and deeper thinking
-              </p>
-            </div>
 
             {/* Feature 6 - Community */}
             <div className="md:col-span-2 group p-8 rounded-3xl bg-card border border-border hover:border-primary/40 hover:shadow-elegant transition-all duration-500">
