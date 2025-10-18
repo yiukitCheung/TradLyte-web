@@ -26,22 +26,22 @@ const Landing = () => {
               <span className="text-sm font-medium text-foreground">Purpose-Driven Wealth Platform</span>
             </div>
             
-            <h1 className="text-6xl md:text-8xl lg:text-9xl font-display font-bold text-foreground leading-[1.05]">
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-foreground leading-[1.05]">
               Build Wealth
               <span className="block text-transparent bg-clip-text bg-gradient-primary mt-2">
                 With Purpose
               </span>
             </h1>
             
-            <p className="text-xl md:text-2xl lg:text-3xl text-muted-foreground leading-relaxed max-w-3xl">
+            <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground leading-relaxed max-w-3xl">
               Stop chasing money. Start discovering meaning. TradLyte guides you to financial independence through purposeful investing and deep self-reflection.
             </p>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4">
               <Link to="/auth">
-                <Button size="lg" className="group text-lg px-8 py-6 shadow-elegant">
+                <Button size="lg" className="group shadow-elegant">
                   Begin Your Journey
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
               <button className="text-foreground hover:text-primary transition-colors font-medium flex items-center gap-2">
@@ -123,8 +123,8 @@ const Landing = () => {
                     <span>Platform Growth</span>
                   </div>
                   <div>
-                    <div className="text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent group-hover:scale-105 transition-transform inline-block">$2.4M</div>
-                    <div className="text-base text-muted-foreground mt-1">Total Wealth Tracked</div>
+                    <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent group-hover:scale-105 transition-transform inline-block">$2.4M</div>
+                    <div className="text-sm text-muted-foreground mt-1">Total Wealth Tracked</div>
                   </div>
                 </div>
                 <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:rotate-12 transition-transform duration-500">
@@ -157,9 +157,9 @@ const Landing = () => {
             <div className="p-8 rounded-3xl bg-gradient-primary text-white shadow-[0_20px_50px_-12px_hsl(var(--primary)/0.4)] hover:scale-105 hover:rotate-2 transition-all duration-500 group relative overflow-hidden">
               <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
               <div className="relative z-10">
-                <TrendingUp className="h-8 w-8 mb-6 group-hover:translate-y-[-4px] transition-transform" />
-                <div className="text-5xl font-bold mb-2">+127%</div>
-                <div className="text-base opacity-90">Avg. Returns</div>
+                <TrendingUp className="h-6 w-6 mb-4 group-hover:translate-y-[-4px] transition-transform" />
+                <div className="text-3xl font-bold mb-2">+127%</div>
+                <div className="text-sm opacity-90">Avg. Returns</div>
                 <div className="mt-6 pt-4 border-t border-white/20">
                   <div className="text-sm opacity-80">vs market: +89%</div>
                 </div>
@@ -172,8 +172,8 @@ const Landing = () => {
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <Target className="h-7 w-7 text-primary" />
                 </div>
-                <div className="text-5xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">10K+</div>
-                <div className="text-base text-muted-foreground mb-4">Active Users</div>
+                <div className="text-3xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">10K+</div>
+                <div className="text-sm text-muted-foreground mb-4">Active Users</div>
                 <div className="flex -space-x-2">
                   {[1, 2, 3].map((i) => (
                     <div 
@@ -240,9 +240,9 @@ const Landing = () => {
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
                   <TrendingUp className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <div className="text-6xl font-display font-bold text-foreground/30 mb-4">01</div>
-                <h3 className="text-3xl font-display font-bold text-foreground mb-4">Track</h3>
-                <p className="text-lg text-muted-foreground">Monitor wealth growth</p>
+                <div className="text-4xl font-display font-bold text-foreground/30 mb-4">01</div>
+                <h3 className="text-2xl font-display font-bold text-foreground mb-4">Track</h3>
+                <p className="text-base text-muted-foreground">Monitor wealth growth</p>
               </div>
             </div>
 
@@ -256,9 +256,9 @@ const Landing = () => {
                 <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-6 transition-all">
                   <BookOpen className="h-8 w-8 text-white" />
                 </div>
-                <div className="text-6xl font-display font-bold text-white/40 mb-4">02</div>
-                <h3 className="text-3xl font-display font-bold mb-4">Reflect</h3>
-                <p className="text-lg opacity-90">Discover your values</p>
+                <div className="text-4xl font-display font-bold text-white/40 mb-4">02</div>
+                <h3 className="text-2xl font-display font-bold mb-4">Reflect</h3>
+                <p className="text-base opacity-90">Discover your values</p>
               </div>
             </div>
 
@@ -269,16 +269,16 @@ const Landing = () => {
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
                   <Target className="h-8 w-8 text-primary" />
                 </div>
-                <div className="text-6xl font-display font-bold text-primary/40 mb-4">03</div>
-                <h3 className="text-3xl font-display font-bold text-foreground mb-4">Transform</h3>
-                <p className="text-lg text-muted-foreground">Become who you want to be</p>
+                <div className="text-4xl font-display font-bold text-primary/40 mb-4">03</div>
+                <h3 className="text-2xl font-display font-bold text-foreground mb-4">Transform</h3>
+                <p className="text-base text-muted-foreground">Become who you want to be</p>
               </div>
             </div>
           </div>
 
           {/* Subtle message below */}
           <div className="text-center mt-16 max-w-3xl mx-auto">
-            <p className="text-2xl text-muted-foreground/60 italic">
+            <p className="text-lg text-muted-foreground/60 italic">
               Wealth is the tool. Purpose is the destination.
             </p>
           </div>
@@ -297,10 +297,10 @@ const Landing = () => {
             <div className="inline-block px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-4">
               Platform Capabilities
             </div>
-            <h2 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold text-foreground">
+            <h2 className="text-3xl md:text-5xl lg:text-6xl font-display font-bold text-foreground">
               Your Financial Evolution Toolkit
             </h2>
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
               Build strategies, track purpose, and transform your relationship with wealth
             </p>
           </div>
@@ -316,8 +316,8 @@ const Landing = () => {
                 <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <Target className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-4xl md:text-5xl font-display font-bold mb-4">No-Code Strategy Designer</h3>
-                <p className="text-xl opacity-95 mb-6 max-w-2xl">
+                <h3 className="text-2xl md:text-3xl font-display font-bold mb-4">No-Code Strategy Designer</h3>
+                <p className="text-base opacity-95 mb-6 max-w-2xl">
                   Build, visualize, and simulate custom investment strategies without writing a single line of code. Test safely before risking real capital.
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -415,7 +415,7 @@ const Landing = () => {
             <div className="inline-block px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-4">
               Our Purpose
             </div>
-            <h2 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold text-foreground">
+            <h2 className="text-3xl md:text-5xl lg:text-6xl font-display font-bold text-foreground">
               Mission & Vision
             </h2>
           </div>
@@ -426,8 +426,8 @@ const Landing = () => {
               <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Target className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-4xl md:text-5xl font-display font-bold mb-6 text-foreground">Our Mission</h3>
-              <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed">
+              <h3 className="text-2xl md:text-3xl font-display font-bold mb-6 text-foreground">Our Mission</h3>
+              <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
                 To liberate people from endlessly hunting money and resources — and guide them to discover meaning, direction, and peace through purposeful investing and self-reflection.
               </p>
             </div>
@@ -437,8 +437,8 @@ const Landing = () => {
               <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Sparkles className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-4xl md:text-5xl font-display font-bold mb-6">Our Vision</h3>
-              <p className="text-xl md:text-2xl leading-relaxed opacity-95">
+              <h3 className="text-2xl md:text-3xl font-display font-bold mb-6">Our Vision</h3>
+              <p className="text-base md:text-lg leading-relaxed opacity-95">
                 To become the world's most life-centered wealth platform — guiding millions to build financial independence, emotional peace, and a deeper understanding of their true purpose.
               </p>
             </div>
@@ -453,7 +453,7 @@ const Landing = () => {
             <div className="inline-block px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm font-medium mb-4">
               What Drives Us
             </div>
-            <h2 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold text-foreground">
+            <h2 className="text-3xl md:text-5xl lg:text-6xl font-display font-bold text-foreground">
               Our Core Values
             </h2>
           </div>
@@ -501,37 +501,37 @@ const Landing = () => {
               </div>
               
               <div className="relative z-10 text-center space-y-8 max-w-4xl mx-auto">
-                <h2 className="text-5xl md:text-7xl font-display font-bold text-white leading-tight">
+                <h2 className="text-3xl md:text-5xl font-display font-bold text-white leading-tight">
                   Ready to Transform Your Financial Future?
                 </h2>
-                <p className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto">
+                <p className="text-base md:text-lg text-white/90 max-w-2xl mx-auto">
                   Join thousands discovering purpose through strategic wealth building.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                   <Link to="/auth">
-                    <Button size="lg" variant="secondary" className="text-lg px-10 py-6 shadow-2xl hover:scale-105 transition-transform">
+                    <Button size="lg" variant="secondary" className="shadow-2xl hover:scale-105 transition-transform">
                       Get Started Free
-                      <ArrowRight className="ml-2 h-5 w-5" />
+                      <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
-                  <button className="text-white hover:text-white/80 transition-colors font-medium flex items-center gap-2 text-lg">
-                    See How It Works <ArrowRight className="h-5 w-5" />
+                  <button className="text-white hover:text-white/80 transition-colors font-medium flex items-center gap-2">
+                    See How It Works <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
 
                 {/* Trust Indicators */}
                 <div className="grid grid-cols-3 gap-8 pt-12 max-w-2xl mx-auto border-t border-white/20">
                   <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-white mb-1">10K+</div>
+                    <div className="text-2xl md:text-3xl font-bold text-white mb-1">10K+</div>
                     <div className="text-sm text-white/70">Active Users</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-white mb-1">$2.4M</div>
+                    <div className="text-2xl md:text-3xl font-bold text-white mb-1">$2.4M</div>
                     <div className="text-sm text-white/70">Assets Tracked</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl md:text-4xl font-bold text-white mb-1">98%</div>
+                    <div className="text-2xl md:text-3xl font-bold text-white mb-1">98%</div>
                     <div className="text-sm text-white/70">Satisfaction</div>
                   </div>
                 </div>
