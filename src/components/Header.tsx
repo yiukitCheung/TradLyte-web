@@ -24,9 +24,9 @@ const Header = () => {
             <Link to="/strategy-builder" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Strategy Builder
             </Link>
-            <a href="#goals" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/goals" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Goals
-            </a>
+            </Link>
             <a href="#journal" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Journal
             </a>
