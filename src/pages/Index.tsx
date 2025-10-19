@@ -2,7 +2,6 @@ import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Hero from "@/components/Hero";
-import StockSearch from "@/components/StockSearch";
 import MarketIndex from "@/components/MarketIndex";
 import Dashboard from "@/components/Dashboard";
 import Strategy from "@/components/Strategy";
@@ -28,11 +27,8 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      {/* Hero Section */}
+      {/* Hero Section with Stock Search */}
       <Hero />
-
-      {/* Stock Search Section */}
-      <StockSearch />
 
       <main className="py-8">
         <div className="container mx-auto px-4 space-y-16">
