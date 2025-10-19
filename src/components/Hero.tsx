@@ -1,7 +1,11 @@
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles, Lock, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 const Hero = () => {
+  const { user } = useAuth();
+
   return (
     <section className="relative py-20 md:py-32 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-subtle -z-10" />
@@ -12,43 +16,57 @@ const Hero = () => {
         <div className="max-w-4xl mx-auto text-center space-y-8 animate-fade-in">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
             <Sparkles className="h-4 w-4" />
-            <span>Focus on What Matters</span>
+            <span>Purpose-Driven Wealth Platform</span>
           </div>
           
           <h1 className="text-5xl md:text-7xl font-display font-bold text-foreground leading-tight">
             Build Wealth with
             <span className="block bg-gradient-primary bg-clip-text text-transparent">
-              Clarity & Purpose
+              Purpose & Clarity
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            A mindful financial platform that helps you design strategy, track personal growth, 
-            and reflect on your values—without the noise.
+            {user 
+              ? `Welcome back! Track your financial journey, design strategies, and align your wealth with your values.`
+              : `Stop chasing money. Start discovering meaning. Design strategies, track goals, and reflect on your financial journey.`
+            }
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-            <Button size="lg" className="group shadow-elegant">
-              Start Your Journey
-              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button size="lg" variant="outline">
-              Learn More
-            </Button>
+            {user ? (
+              <p className="text-lg font-medium text-foreground">
+                Explore your features below 👇
+              </p>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button size="lg" className="group shadow-elegant">
+                    Start Your Journey
+                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+                <a href="#strategy-builder">
+                  <Button size="lg" variant="outline">
+                    Try Strategy Builder
+                  </Button>
+                </a>
+              </>
+            )}
           </div>
           
-          <div className="pt-8 grid grid-cols-3 gap-8 max-w-2xl mx-auto">
-            <div className="space-y-1">
-              <div className="text-3xl font-bold text-foreground">10k+</div>
-              <div className="text-sm text-muted-foreground">Active Users</div>
+          <div className="pt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              <span>Bank-level security</span>
             </div>
-            <div className="space-y-1">
-              <div className="text-3xl font-bold text-foreground">$2M+</div>
-              <div className="text-sm text-muted-foreground">Goals Achieved</div>
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              <span>Privacy-first</span>
             </div>
-            <div className="space-y-1">
-              <div className="text-3xl font-bold text-foreground">98%</div>
-              <div className="text-sm text-muted-foreground">Satisfaction</div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              <span>10K+ Active users</span>
             </div>
           </div>
         </div>
