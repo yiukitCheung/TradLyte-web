@@ -5,28 +5,37 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
 
 const MarketIndex = () => {
-  // Generate mock time series data (last 7 days)
+  // Generate mock time series data (last 7 days) - normalized to percentage returns
   const generateTimeSeriesData = () => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return days.map(day => ({
-      day,
-      'S&P 500': Math.random() * 100 + 4700,
-      'Dow Jones': Math.random() * 1000 + 37000,
-      'NASDAQ': Math.random() * 500 + 15000,
-      'Bitcoin': Math.random() * 2000 + 51000,
-      'Technology': Math.random() * 200 + 3100,
-      'Healthcare': Math.random() * 100 + 1800,
-      'Financial': Math.random() * 150 + 2000,
-      'Energy': Math.random() * 100 + 1500,
-      'Consumer': Math.random() * 150 + 2400,
-      'Industrial': Math.random() * 100 + 1900,
-      'Materials': Math.random() * 80 + 1300,
-      'Utilities': Math.random() * 50 + 950,
-      'Crude Oil': Math.random() * 5 + 76,
-      'Gold': Math.random() * 50 + 2010,
-      'Silver': Math.random() * 2 + 22,
-      'Natural Gas': Math.random() * 0.5 + 2.5,
-    }));
+    const indices = ['S&P 500', 'Dow Jones', 'NASDAQ', 'Bitcoin', 'Technology', 'Healthcare', 
+                     'Financial', 'Energy', 'Consumer', 'Industrial', 'Materials', 'Utilities',
+                     'Crude Oil', 'Gold', 'Silver', 'Natural Gas'];
+    
+    // Generate raw data first
+    const rawData = days.map(() => {
+      const dataPoint: any = {};
+      indices.forEach(index => {
+        dataPoint[index] = Math.random() * 10 - 2; // Random returns between -2% and +8%
+      });
+      return dataPoint;
+    });
+    
+    // Convert to cumulative returns starting at 100
+    return days.map((day, i) => {
+      const dataPoint: any = { day };
+      indices.forEach(index => {
+        if (i === 0) {
+          dataPoint[index] = 100; // Start at 100%
+        } else {
+          // Cumulative return
+          dataPoint[index] = rawData.slice(0, i + 1).reduce((acc, curr, idx) => {
+            return idx === 0 ? 100 : acc * (1 + curr[index] / 100);
+          }, 100);
+        }
+      });
+      return dataPoint;
+    });
   };
 
   const [chartData] = useState(generateTimeSeriesData());
@@ -171,7 +180,7 @@ const MarketIndex = () => {
       {/* Composite Line Chart */}
       <Card className="shadow-card border-border/50 animate-fade-in">
         <CardHeader>
-          <CardTitle className="text-xl">Market Overview - 7 Day Trend</CardTitle>
+          <CardTitle className="text-xl">Market Overview - 7 Day Trend (% Return)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Chart */}
@@ -187,6 +196,8 @@ const MarketIndex = () => {
                 <YAxis 
                   stroke="hsl(var(--muted-foreground))"
                   tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  domain={[95, 110]}
+                  tickFormatter={(value) => `${value.toFixed(1)}%`}
                 />
                 <Tooltip 
                   contentStyle={{ 
@@ -195,6 +206,7 @@ const MarketIndex = () => {
                     borderRadius: '8px',
                     color: 'hsl(var(--foreground))'
                   }}
+                  formatter={(value: any) => `${value.toFixed(2)}%`}
                 />
                 <Legend />
                 {allIndices
