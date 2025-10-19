@@ -1,32 +1,56 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useState } from "react";
 
 const MarketIndex = () => {
-  const majorIndices = [
-    { name: "S&P 500", value: "4,783.45", change: "+1.24%", isPositive: true },
-    { name: "Dow Jones", value: "37,545.33", change: "+0.89%", isPositive: true },
-    { name: "NASDAQ", value: "15,235.71", change: "-0.45%", isPositive: false },
-    { name: "Bitcoin", value: "$52,340", change: "+3.21%", isPositive: true },
+  // Generate mock time series data (last 7 days)
+  const generateTimeSeriesData = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days.map(day => ({
+      day,
+      'S&P 500': Math.random() * 100 + 4700,
+      'Dow Jones': Math.random() * 1000 + 37000,
+      'NASDAQ': Math.random() * 500 + 15000,
+      'Bitcoin': Math.random() * 2000 + 51000,
+      'Technology': Math.random() * 200 + 3100,
+      'Healthcare': Math.random() * 100 + 1800,
+      'Financial': Math.random() * 150 + 2000,
+      'Energy': Math.random() * 100 + 1500,
+      'Consumer': Math.random() * 150 + 2400,
+      'Industrial': Math.random() * 100 + 1900,
+      'Materials': Math.random() * 80 + 1300,
+      'Utilities': Math.random() * 50 + 950,
+      'Crude Oil': Math.random() * 5 + 76,
+      'Gold': Math.random() * 50 + 2010,
+      'Silver': Math.random() * 2 + 22,
+      'Natural Gas': Math.random() * 0.5 + 2.5,
+    }));
+  };
+
+  const [chartData] = useState(generateTimeSeriesData());
+  
+  const allIndices = [
+    { id: 'S&P 500', name: 'S&P 500', category: 'Major', color: 'hsl(var(--chart-1))' },
+    { id: 'Dow Jones', name: 'Dow Jones', category: 'Major', color: 'hsl(var(--chart-2))' },
+    { id: 'NASDAQ', name: 'NASDAQ', category: 'Major', color: 'hsl(var(--chart-3))' },
+    { id: 'Bitcoin', name: 'Bitcoin', category: 'Major', color: 'hsl(var(--chart-4))' },
+    { id: 'Technology', name: 'Technology', category: 'Sector', color: 'hsl(var(--chart-5))' },
+    { id: 'Healthcare', name: 'Healthcare', category: 'Sector', color: 'hsl(var(--chart-1))' },
+    { id: 'Financial', name: 'Financial', category: 'Sector', color: 'hsl(var(--chart-2))' },
+    { id: 'Energy', name: 'Energy', category: 'Sector', color: 'hsl(var(--chart-3))' },
+    { id: 'Consumer', name: 'Consumer', category: 'Sector', color: 'hsl(var(--chart-4))' },
+    { id: 'Industrial', name: 'Industrial', category: 'Sector', color: 'hsl(var(--chart-5))' },
+    { id: 'Materials', name: 'Materials', category: 'Sector', color: 'hsl(var(--chart-1))' },
+    { id: 'Utilities', name: 'Utilities', category: 'Sector', color: 'hsl(var(--chart-2))' },
+    { id: 'Crude Oil', name: 'Crude Oil', category: 'Commodity', color: 'hsl(var(--chart-3))' },
+    { id: 'Gold', name: 'Gold', category: 'Commodity', color: 'hsl(var(--chart-4))' },
+    { id: 'Silver', name: 'Silver', category: 'Commodity', color: 'hsl(var(--chart-5))' },
+    { id: 'Natural Gas', name: 'Natural Gas', category: 'Commodity', color: 'hsl(var(--chart-1))' },
   ];
 
-  const sectorIndices = [
-    { name: "Technology", value: "3,245.67", change: "+1.85%", isPositive: true },
-    { name: "Healthcare", value: "1,876.23", change: "+0.56%", isPositive: true },
-    { name: "Financial", value: "2,134.89", change: "-0.32%", isPositive: false },
-    { name: "Energy", value: "1,567.45", change: "+2.15%", isPositive: true },
-    { name: "Consumer", value: "2,456.78", change: "+0.78%", isPositive: true },
-    { name: "Industrial", value: "1,987.34", change: "+1.12%", isPositive: true },
-    { name: "Materials", value: "1,345.67", change: "-0.67%", isPositive: false },
-    { name: "Utilities", value: "987.23", change: "+0.34%", isPositive: true },
-  ];
-
-  const commodities = [
-    { name: "Crude Oil", value: "$78.45", change: "+1.67%", isPositive: true },
-    { name: "Gold", value: "$2,034.50", change: "+0.45%", isPositive: true },
-    { name: "Silver", value: "$23.67", change: "-0.89%", isPositive: false },
-    { name: "Natural Gas", value: "$2.87", change: "+2.34%", isPositive: true },
-  ];
+  const [selectedIndices, setSelectedIndices] = useState<string[]>(['S&P 500', 'NASDAQ', 'Technology']);
 
   // Sentiment indices (0-100 scale)
   const fearIndex = 32; // Low = Greedy, High = Fearful
@@ -46,7 +70,7 @@ const MarketIndex = () => {
   }) => {
     const gaugeData = [
       { value: value, fill: color },
-      { value: 100 - value, fill: "hsl(var(--muted))" },
+      { value: 100 - value, fill: "hsl(var(--muted) / 0.2)" },
     ];
 
     const getSentiment = (val: number) => {
@@ -69,13 +93,13 @@ const MarketIndex = () => {
     const sentiment = getSentiment(value);
 
     return (
-      <Card className="shadow-card border-border/50 hover-scale">
+      <Card className="shadow-card border-border/50 hover-scale bg-gradient-to-br from-card to-card/50">
         <CardHeader>
           <CardTitle className="text-lg">{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center gap-4">
-            <div className="w-40 h-40 animate-scale-in">
+            <div className="w-40 h-40 animate-scale-in relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -88,6 +112,7 @@ const MarketIndex = () => {
                     outerRadius={70}
                     dataKey="value"
                     animationDuration={800}
+                    strokeWidth={0}
                   >
                     {gaugeData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -95,10 +120,12 @@ const MarketIndex = () => {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-3xl font-bold text-foreground">{value}</div>
+              </div>
             </div>
             <div className="text-center space-y-1 animate-fade-in">
-              <div className="text-4xl font-bold text-foreground">{value}</div>
-              <div className={`text-sm font-semibold ${sentiment.color}`}>{sentiment.text}</div>
+              <div className={`text-lg font-semibold ${sentiment.color}`}>{sentiment.text}</div>
               <div className="text-xs text-muted-foreground">{subtitle}</div>
             </div>
           </div>
@@ -106,6 +133,16 @@ const MarketIndex = () => {
       </Card>
     );
   };
+
+  const toggleIndex = (indexId: string) => {
+    setSelectedIndices(prev => 
+      prev.includes(indexId) 
+        ? prev.filter(id => id !== indexId)
+        : [...prev, indexId]
+    );
+  };
+
+  const categories = ['Major', 'Sector', 'Commodity'];
 
   return (
     <div className="space-y-6">
@@ -131,86 +168,80 @@ const MarketIndex = () => {
         />
       </div>
 
-      {/* Major Indices */}
+      {/* Composite Line Chart */}
       <Card className="shadow-card border-border/50 animate-fade-in">
         <CardHeader>
-          <CardTitle className="text-xl">Major Indices</CardTitle>
+          <CardTitle className="text-xl">Market Overview - 7 Day Trend</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {majorIndices.map((index, i) => (
-              <div 
-                key={index.name} 
-                className="space-y-1 p-3 rounded-lg bg-muted/30 hover-scale transition-all"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <p className="text-sm text-muted-foreground">{index.name}</p>
-                <p className="text-lg font-bold text-foreground">{index.value}</p>
-                <div className={`flex items-center gap-1 text-sm ${index.isPositive ? 'text-primary' : 'text-destructive'}`}>
-                  {index.isPositive ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  <span className="font-medium">{index.change}</span>
-                </div>
-              </div>
-            ))}
+        <CardContent className="space-y-6">
+          {/* Chart */}
+          <div className="h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="hsl(var(--muted-foreground))"
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <YAxis 
+                  stroke="hsl(var(--muted-foreground))"
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    color: 'hsl(var(--foreground))'
+                  }}
+                />
+                <Legend />
+                {allIndices
+                  .filter(index => selectedIndices.includes(index.id))
+                  .map(index => (
+                    <Line
+                      key={index.id}
+                      type="monotone"
+                      dataKey={index.id}
+                      stroke={index.color}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                      animationDuration={800}
+                    />
+                  ))}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Sector Indices */}
-      <Card className="shadow-card border-border/50 animate-fade-in">
-        <CardHeader>
-          <CardTitle className="text-xl">Sector Performance</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {sectorIndices.map((sector, i) => (
-              <div 
-                key={sector.name} 
-                className="space-y-1 p-3 rounded-lg bg-muted/30 hover-scale transition-all"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <p className="text-sm text-muted-foreground">{sector.name}</p>
-                <p className="text-lg font-bold text-foreground">{sector.value}</p>
-                <div className={`flex items-center gap-1 text-sm ${sector.isPositive ? 'text-primary' : 'text-destructive'}`}>
-                  {sector.isPositive ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  <span className="font-medium">{sector.change}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Commodities */}
-      <Card className="shadow-card border-border/50 animate-fade-in">
-        <CardHeader>
-          <CardTitle className="text-xl">Commodities</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {commodities.map((commodity, i) => (
-              <div 
-                key={commodity.name} 
-                className="space-y-1 p-3 rounded-lg bg-muted/30 hover-scale transition-all"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <p className="text-sm text-muted-foreground">{commodity.name}</p>
-                <p className="text-lg font-bold text-foreground">{commodity.value}</p>
-                <div className={`flex items-center gap-1 text-sm ${commodity.isPositive ? 'text-primary' : 'text-destructive'}`}>
-                  {commodity.isPositive ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  <span className="font-medium">{commodity.change}</span>
+          {/* Index Selection Checkboxes */}
+          <div className="space-y-4">
+            {categories.map(category => (
+              <div key={category} className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground">{category} Indices</h3>
+                <div className="flex flex-wrap gap-4">
+                  {allIndices
+                    .filter(index => index.category === category)
+                    .map(index => (
+                      <div key={index.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={index.id}
+                          checked={selectedIndices.includes(index.id)}
+                          onCheckedChange={() => toggleIndex(index.id)}
+                        />
+                        <label
+                          htmlFor={index.id}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
+                        >
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: index.color }}
+                          />
+                          {index.name}
+                        </label>
+                      </div>
+                    ))}
                 </div>
               </div>
             ))}
