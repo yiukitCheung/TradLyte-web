@@ -140,6 +140,10 @@ export type Database = {
           id: string
           purchase_price: number | null
           quantity: number | null
+          strategy_allocation: Json | null
+          strategy_description: string | null
+          strategy_name: string | null
+          strategy_progress: number | null
           updated_at: string | null
           user_id: string
         }
@@ -151,6 +155,10 @@ export type Database = {
           id?: string
           purchase_price?: number | null
           quantity?: number | null
+          strategy_allocation?: Json | null
+          strategy_description?: string | null
+          strategy_name?: string | null
+          strategy_progress?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -162,6 +170,10 @@ export type Database = {
           id?: string
           purchase_price?: number | null
           quantity?: number | null
+          strategy_allocation?: Json | null
+          strategy_description?: string | null
+          strategy_name?: string | null
+          strategy_progress?: number | null
           updated_at?: string | null
           user_id?: string
         }
@@ -184,39 +196,6 @@ export type Database = {
           created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_strategies: {
-        Row: {
-          allocation: Json | null
-          created_at: string | null
-          description: string | null
-          id: string
-          name: string
-          progress: number | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          allocation?: Json | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name: string
-          progress?: number | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          allocation?: Json | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name?: string
-          progress?: number | null
-          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
