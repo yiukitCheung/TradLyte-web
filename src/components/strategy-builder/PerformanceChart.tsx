@@ -72,10 +72,12 @@ const calculateStrategyMultiplier = (conditions: Condition[]): number => {
 
 const generateChartData = (stockBaseReturn: number, strategyMultiplier: number) => {
   const data = [];
+  // 3-year events spread across 36 months
   const events = [
-    { month: 3, label: "Fed Rate Decision", impact: -5 },
-    { month: 7, label: "Earnings Season", impact: 8 },
-    { month: 10, label: "Market Correction", impact: -12 },
+    { month: 6, label: "Fed Rate Hike", impact: -5 },
+    { month: 14, label: "Earnings Beat", impact: 8 },
+    { month: 22, label: "Market Correction", impact: -12 },
+    { month: 28, label: "Recovery Rally", impact: 10 },
   ];
   
   let marketValue = 100;
@@ -84,7 +86,14 @@ const generateChartData = (stockBaseReturn: number, strategyMultiplier: number) 
   // Adjust volatility based on stock
   const volatility = stockBaseReturn / 10;
   
-  for (let i = 0; i < 12; i++) {
+  const startDate = new Date(2022, 0); // Jan 2022
+  
+  // Generate 36 months (3 years) of data
+  for (let i = 0; i < 36; i++) {
+    const date = new Date(startDate);
+    date.setMonth(date.getMonth() + i);
+    const label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    
     const event = events.find(e => e.month === i);
     const randomFactor = (Math.random() - 0.48) * volatility;
     
@@ -98,7 +107,7 @@ const generateChartData = (stockBaseReturn: number, strategyMultiplier: number) 
     strategyValue += strategyChange;
     
     data.push({
-      month: `Month ${i + 1}`,
+      month: label,
       market: Math.round(marketValue * 10) / 10,
       strategy: Math.round(strategyValue * 10) / 10,
       event: event?.label,
