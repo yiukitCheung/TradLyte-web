@@ -59,14 +59,14 @@ const StrategyBuilder = () => {
       
       <div className="container mx-auto px-4 py-8">
         {/* Header Section */}
-        <div className="mb-8 space-y-4">
+        <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center">
               <Sparkles className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-4xl font-display font-bold text-foreground">Strategy Builder</h1>
-              <p className="text-muted-foreground">Design and test your investment strategies in a sandbox environment</p>
+              <h1 className="text-3xl lg:text-4xl font-display font-bold text-foreground">Strategy Builder</h1>
+              <p className="text-muted-foreground text-sm lg:text-base">Design and test your investment strategies</p>
             </div>
           </div>
 
@@ -82,52 +82,61 @@ const StrategyBuilder = () => {
             </Button>
             <Button onClick={handleSave} variant="outline">
               <Save className="h-4 w-4 mr-2" />
-              Save Strategy
+              Save
             </Button>
-            <Button onClick={handleReset} variant="outline">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Reset
+            <Button onClick={handleReset} variant="outline" size="icon">
+              <RotateCcw className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Condition Library - Left Sidebar */}
-          <div className="lg:col-span-3">
-            <Card className="p-6 shadow-card sticky top-8">
-              <h2 className="text-xl font-semibold mb-4 text-foreground">Condition Library</h2>
+        {/* Main Content - Performance Chart as Hero */}
+        <div className="space-y-6">
+          {/* Performance Chart - Hero Section */}
+          <div className="w-full">
+            <PerformanceChart isSimulating={isSimulating} conditions={selectedConditions} />
+          </div>
+
+          {/* Building Tools - Bottom Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Condition Library */}
+            <Card className="p-6 shadow-card">
+              <h2 className="text-lg font-semibold mb-4 text-foreground flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-subtle flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                Condition Library
+              </h2>
               <Tabs defaultValue="beginner" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 mb-4">
-                  <TabsTrigger value="beginner">Beginner</TabsTrigger>
-                  <TabsTrigger value="intermediate">Inter.</TabsTrigger>
-                  <TabsTrigger value="advanced">Adv.</TabsTrigger>
+                  <TabsTrigger value="beginner" className="text-xs">Beginner</TabsTrigger>
+                  <TabsTrigger value="intermediate" className="text-xs">Intermediate</TabsTrigger>
+                  <TabsTrigger value="advanced" className="text-xs">Advanced</TabsTrigger>
                 </TabsList>
                 <TabsContent value="beginner">
-                  <ConditionLibrary category="beginner" onDrop={handleDrop} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <ConditionLibrary category="beginner" onDrop={handleDrop} />
+                  </div>
                 </TabsContent>
                 <TabsContent value="intermediate">
-                  <ConditionLibrary category="intermediate" onDrop={handleDrop} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <ConditionLibrary category="intermediate" onDrop={handleDrop} />
+                  </div>
                 </TabsContent>
                 <TabsContent value="advanced">
-                  <ConditionLibrary category="advanced" onDrop={handleDrop} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <ConditionLibrary category="advanced" onDrop={handleDrop} />
+                  </div>
                 </TabsContent>
               </Tabs>
             </Card>
-          </div>
 
-          {/* Strategy Canvas - Middle */}
-          <div className="lg:col-span-5">
+            {/* Strategy Canvas */}
             <StrategyCanvas 
               conditions={selectedConditions}
               onRemoveCondition={handleRemoveCondition}
               onAddCondition={(condition) => setSelectedConditions([...selectedConditions, condition])}
             />
-          </div>
-
-          {/* Performance Chart - Right */}
-          <div className="lg:col-span-4">
-            <PerformanceChart isSimulating={isSimulating} conditions={selectedConditions} />
           </div>
         </div>
       </div>
