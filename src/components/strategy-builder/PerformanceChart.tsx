@@ -145,57 +145,67 @@ const PerformanceChart = ({ isSimulating, conditions }: PerformanceChartProps) =
   const hasConditions = conditions.length > 0;
 
   return (
-    <Card className="shadow-card sticky top-8">
-      <CardHeader className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-xl">Performance Analysis</CardTitle>
-            <CardDescription>Strategy vs Market Index (12 months)</CardDescription>
+    <Card className="shadow-card border-2 border-primary/20 bg-gradient-to-br from-background to-primary/5">
+      <CardHeader className="pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow">
+              <TrendingUp className="h-7 w-7 text-primary-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl lg:text-3xl font-display">Performance Analysis</CardTitle>
+              <CardDescription className="text-base">See how your strategy compares to the market</CardDescription>
+            </div>
           </div>
-          {hasConditions && parseFloat(outperformance) > 0 ? (
-            <Badge className="bg-gradient-primary">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +{outperformance}%
-            </Badge>
-          ) : hasConditions ? (
-            <Badge variant="outline" className="border-destructive text-destructive">
-              <TrendingUp className="h-3 w-3 mr-1 rotate-180" />
-              {outperformance}%
-            </Badge>
-          ) : null}
-        </div>
-        
-        {/* Stock Selector */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Apply Strategy To:</label>
-          <Select value={selectedStock} onValueChange={setSelectedStock}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a stock" />
-            </SelectTrigger>
-            <SelectContent>
-              {stockOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          
+          <div className="flex items-center gap-4">
+            {/* Stock Selector */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Apply to:</label>
+              <Select value={selectedStock} onValueChange={setSelectedStock}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select a stock" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stockOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {hasConditions && parseFloat(outperformance) > 0 ? (
+              <Badge className="bg-gradient-primary text-lg px-4 py-2 shadow-glow">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                +{outperformance}% vs Market
+              </Badge>
+            ) : hasConditions ? (
+              <Badge variant="outline" className="border-destructive text-destructive text-lg px-4 py-2">
+                <TrendingUp className="h-4 w-4 mr-2 rotate-180" />
+                {outperformance}% vs Market
+              </Badge>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         {!hasConditions ? (
-          <div className="h-[300px] flex items-center justify-center bg-muted/30 rounded-lg border-2 border-dashed border-border">
-            <div className="text-center p-6">
-              <TrendingUp className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">Add conditions to see performance</p>
-              <p className="text-sm text-muted-foreground/70 mt-1">
-                Drag conditions from the library to simulate returns
+          <div className="h-[350px] flex items-center justify-center bg-muted/30 rounded-xl border-2 border-dashed border-primary/30">
+            <div className="text-center p-8">
+              <div className="w-20 h-20 rounded-full bg-gradient-primary/20 flex items-center justify-center mx-auto mb-4">
+                <TrendingUp className="h-10 w-10 text-primary" />
+              </div>
+              <p className="text-xl font-semibold text-foreground">Add conditions to see performance</p>
+              <p className="text-muted-foreground mt-2 max-w-md">
+                Drag conditions from the library below or click them to build your strategy and see projected returns
               </p>
             </div>
           </div>
         ) : (
           <>
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <ChartContainer config={chartConfig} className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -242,34 +252,31 @@ const PerformanceChart = ({ isSimulating, conditions }: PerformanceChartProps) =
                     type="monotone"
                     dataKey="strategy"
                     stroke={chartConfig.strategy.color}
-                    strokeWidth={3}
+                    strokeWidth={4}
                     dot={false}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </ChartContainer>
 
-            {/* Key Metrics */}
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Final Value (Market)</p>
-                <p className="text-lg font-bold text-foreground">${finalMarket}</p>
+            {/* Key Metrics Row */}
+            <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                <p className="text-xs text-muted-foreground">Market Final Value</p>
+                <p className="text-2xl font-bold text-foreground">${finalMarket}</p>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Final Value (Strategy)</p>
-                <p className="text-lg font-bold text-primary">${finalStrategy}</p>
+              <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                <p className="text-xs text-muted-foreground">Strategy Final Value</p>
+                <p className="text-2xl font-bold text-primary">${finalStrategy}</p>
               </div>
-            </div>
-
-            {/* Strategy Info */}
-            <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">Active Conditions</span>
-                <Badge variant="secondary">{conditions.length}</Badge>
+              <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                <p className="text-xs text-muted-foreground">Active Conditions</p>
+                <p className="text-2xl font-bold text-foreground">{conditions.length}</p>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Strategy multiplier: {strategyMultiplier.toFixed(2)}x
-              </p>
+              <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                <p className="text-xs text-muted-foreground">Strategy Multiplier</p>
+                <p className="text-2xl font-bold text-foreground">{strategyMultiplier.toFixed(2)}x</p>
+              </div>
             </div>
           </>
         )}
