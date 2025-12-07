@@ -92,10 +92,13 @@ const UserDashboard = () => {
             </p>
           </div>
 
-          {/* Main Dashboard Grid - Analytics + Growth Chart Side by Side */}
-          <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-6">
-            
-            {/* Left: Symbol Analytics */}
+          {/* Your Growth vs Market - Full Width */}
+          <div className="max-w-6xl mx-auto">
+            <MarketIndex variant="user" />
+          </div>
+
+          {/* Symbol Analytics - Wide Table Format */}
+          <div className="max-w-6xl mx-auto">
             <Card className="shadow-elegant border-border/50 overflow-hidden relative group">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="pb-4">
@@ -114,51 +117,66 @@ const UserDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Watchlist Table - Compact */}
+                {/* Wide Watchlist Table */}
                 <div className="rounded-lg border border-border/50 overflow-hidden">
-                  <div className="grid grid-cols-4 gap-2 p-3 bg-muted/30 text-xs font-medium text-muted-foreground">
-                    <span>Symbol</span>
-                    <span>Price</span>
-                    <span>Change</span>
-                    <span>Score</span>
-                  </div>
-                  {watchlistStocks.map((stock) => (
-                    <div 
-                      key={stock.symbol} 
-                      className="grid grid-cols-4 gap-2 p-3 items-center border-t border-border/30 hover:bg-muted/20 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/stock/${stock.symbol}`)}
-                    >
-                      <div>
-                        <div className="font-semibold text-foreground text-sm">{stock.symbol}</div>
-                        <div className="text-xs text-muted-foreground truncate">{stock.name}</div>
-                      </div>
-                      <div className="font-mono text-sm">${stock.price.toFixed(2)}</div>
-                      <div className={`flex items-center gap-1 text-sm ${stock.change >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                        {stock.change >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        <span>{stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-10 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
-                            style={{ width: `${stock.score}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-semibold text-primary">{stock.score}</span>
-                      </div>
-                    </div>
-                  ))}
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-muted/30 text-xs font-medium text-muted-foreground">
+                        <th className="text-left p-4">Symbol</th>
+                        <th className="text-left p-4">Company</th>
+                        <th className="text-right p-4">Price</th>
+                        <th className="text-right p-4">Change</th>
+                        <th className="text-right p-4">% Change</th>
+                        <th className="text-right p-4">Tradlyte Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {watchlistStocks.map((stock) => (
+                        <tr 
+                          key={stock.symbol} 
+                          className="border-t border-border/30 hover:bg-muted/20 transition-colors cursor-pointer"
+                          onClick={() => navigate(`/stock/${stock.symbol}`)}
+                        >
+                          <td className="p-4">
+                            <span className="font-semibold text-foreground">{stock.symbol}</span>
+                          </td>
+                          <td className="p-4 text-muted-foreground">{stock.name}</td>
+                          <td className="p-4 text-right font-mono">${stock.price.toFixed(2)}</td>
+                          <td className={`p-4 text-right font-mono ${stock.change >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}
+                          </td>
+                          <td className={`p-4 text-right ${stock.change >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            <span className="inline-flex items-center gap-1">
+                              {stock.change >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                              {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+                                  style={{ width: `${stock.score}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-semibold text-primary w-8">{stock.score}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
 
                 {/* Market Pulse - Inline */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-4">
                   {marketIndicators.map((indicator) => (
                     <div 
                       key={indicator.name} 
-                      className="p-2 rounded-lg bg-muted/30 text-center"
+                      className="p-3 rounded-lg bg-muted/30 text-center"
                     >
                       <div className="text-xs text-muted-foreground">{indicator.name}</div>
-                      <div className="font-semibold font-mono text-sm">{indicator.value}</div>
+                      <div className="font-semibold font-mono">{indicator.value}</div>
                       <Badge 
                         variant="secondary" 
                         className={`text-xs ${indicator.positive ? 'bg-green-500/10 text-green-600 border-0' : 'bg-red-500/10 text-red-500 border-0'}`}
@@ -170,9 +188,6 @@ const UserDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Right: Your Growth vs Market Chart */}
-            <MarketIndex variant="user" />
           </div>
 
           {/* Stock Search Section */}
