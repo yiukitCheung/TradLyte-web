@@ -12,11 +12,23 @@ const MarketIndex = ({ variant = 'default' }: MarketIndexProps) => {
   const isUserMode = variant === 'user';
   const primaryLabel = isUserMode ? 'Your Portfolio' : 'Tradlyte Pick';
   
-  // Generate 3 years of monthly data
+  // Generate 3 years of monthly data with realistic market fluctuations
   const generateChartData = () => {
     const data = [];
     let sp500 = 100, primary = 100;
     const startDate = new Date(2022, 0); // Jan 2022
+    
+    // Simulate realistic market events and volatility
+    const marketEvents = [
+      { month: 3, sp500Impact: -0.08, primaryImpact: -0.05 },  // Q1 correction
+      { month: 6, sp500Impact: -0.12, primaryImpact: -0.07 },  // Mid-year selloff
+      { month: 9, sp500Impact: 0.06, primaryImpact: 0.08 },    // Recovery rally
+      { month: 14, sp500Impact: -0.06, primaryImpact: -0.03 }, // Mini correction
+      { month: 18, sp500Impact: -0.10, primaryImpact: -0.06 }, // Bear market dip
+      { month: 22, sp500Impact: 0.08, primaryImpact: 0.10 },   // Strong recovery
+      { month: 28, sp500Impact: -0.04, primaryImpact: -0.02 }, // Volatility spike
+      { month: 32, sp500Impact: 0.05, primaryImpact: 0.07 },   // Bull run
+    ];
     
     for (let i = 0; i < 36; i++) {
       const date = new Date(startDate);
@@ -24,8 +36,25 @@ const MarketIndex = ({ variant = 'default' }: MarketIndexProps) => {
       const label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       
       if (i > 0) {
-        sp500 *= 1 + (Math.random() * 0.06 - 0.02);
-        primary *= 1 + (Math.random() * 0.05 + 0.01);
+        // Base volatility with realistic swings
+        const baseVolatility = 0.04;
+        const sp500Change = (Math.random() - 0.45) * baseVolatility; // Slight upward bias
+        const primaryChange = (Math.random() - 0.40) * baseVolatility; // Better upward bias
+        
+        // Check for market events
+        const event = marketEvents.find(e => e.month === i);
+        if (event) {
+          sp500 *= 1 + event.sp500Impact + (Math.random() * 0.02 - 0.01);
+          primary *= 1 + event.primaryImpact + (Math.random() * 0.02 - 0.01);
+        } else {
+          // Normal month with realistic fluctuation
+          sp500 *= 1 + sp500Change;
+          primary *= 1 + primaryChange;
+        }
+        
+        // Add micro-volatility for realistic jaggedness
+        sp500 *= 1 + (Math.random() * 0.02 - 0.01);
+        primary *= 1 + (Math.random() * 0.015 - 0.005);
       }
       
       data.push({
