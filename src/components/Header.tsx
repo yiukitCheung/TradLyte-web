@@ -1,4 +1,4 @@
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "react-router-dom";
@@ -56,9 +56,17 @@ const Header = () => {
         </nav>
 
         {user ? (
-          <Button onClick={() => signOut()} variant="outline" size="sm" className="hidden md:flex">
-            Sign Out
-          </Button>
+          <div className="hidden md:flex items-center gap-2">
+            <Link to="/dashboard">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <User className="h-4 w-4" />
+                Dashboard
+              </Button>
+            </Link>
+            <Button onClick={() => signOut()} variant="outline" size="sm">
+              Sign Out
+            </Button>
+          </div>
         ) : (
           <Link to="/auth">
             <Button variant="default" size="sm" className="hidden md:flex">
