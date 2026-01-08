@@ -1,17 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, TrendingUp, TrendingDown, Plus, Check, Loader2, Newspaper, ExternalLink } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, TrendingUp, TrendingDown, Plus, Check, Loader2, Newspaper, ExternalLink, MessageSquare, Send, Building, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import mascotImage from "@/assets/tradlyte-mascot.png";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +23,9 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
+
+type TimePeriod = "1D" | "6M" | "YTD" | "1Y" | "5Y";
 
 const StockDetail = () => {
   const { symbol } = useParams<{ symbol: string }>();
@@ -34,66 +38,66 @@ const StockDetail = () => {
   const [buyInPrice, setBuyInPrice] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1Y");
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([
+    { role: 'ai', text: `Hi! I'm your Tradlyte AI assistant for ${symbol || "this stock"}. I can help you analyze this stock based on your portfolio and strategy. Ask me anything about entry points, risks, or how it fits your investment goals!` }
+  ]);
 
-  // Generate price chart data (placeholder)
-  const generatePriceData = () => {
+  // Generate price chart data based on period
+  const generatePriceData = (period: TimePeriod) => {
     const data = [];
+    let days = 30;
+    switch (period) {
+      case "1D": days = 1; break;
+      case "6M": days = 180; break;
+      case "YTD": days = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 1).getTime()) / (1000 * 60 * 60 * 24)); break;
+      case "1Y": days = 365; break;
+      case "5Y": days = 1825; break;
+    }
+    
     let price = 165;
-    for (let i = 30; i >= 0; i--) {
+    const interval = period === "1D" ? 24 : Math.min(days, 60);
+    const step = Math.max(1, Math.floor(days / interval));
+    
+    for (let i = days; i >= 0; i -= step) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      price = price + (Math.random() - 0.48) * 3;
+      price = price + (Math.random() - 0.48) * (period === "5Y" ? 5 : 2);
       data.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        price: parseFloat(price.toFixed(2)),
+        date: date.toISOString(),
+        price: parseFloat(Math.max(100, price).toFixed(2)),
       });
     }
     return data;
   };
 
-  const priceData = generatePriceData();
+  const priceData = useMemo(() => generatePriceData(selectedPeriod), [selectedPeriod]);
+  const priceChange = priceData.length > 1 ? priceData[priceData.length - 1].price - priceData[0].price : 0;
+  const priceChangePercent = priceData.length > 1 ? (priceChange / priceData[0].price) * 100 : 0;
 
-  // Placeholder data - will be replaced by backend
+  // Stock data
   const stockData = {
     symbol: symbol || "AAPL",
     name: getStockName(symbol || "AAPL"),
-    price: 178.45,
-    change: 2.34,
-    changePercent: 1.33,
+    price: priceData.length > 0 ? priceData[priceData.length - 1].price : 178.45,
+    change: priceChange,
+    changePercent: priceChangePercent,
+    industry: "Technology",
+    sector: "Consumer Electronics",
     recommendationScore: user ? 87 : 72,
     strategyName: user ? "Growth & Value Mix" : "Default Strategy",
+    portfolioGrowth: user ? "+12.4%" : null,
     correlatedIndices: [
       { name: "S&P 500", correlation: 0.92, change: 1.2, price: "$5,234.18" },
       { name: "NASDAQ", correlation: 0.89, change: 1.5, price: "$16,742.39" },
-      { name: "Technology", correlation: 0.85, change: 2.1, price: "$3,892.45" },
       { name: "Crude Oil (WTI)", correlation: 0.42, change: -0.8, price: "$78.24" },
       { name: "Gold", correlation: -0.35, change: 0.4, price: "$2,048.60" },
     ],
     news: [
-      {
-        title: `${symbol || "AAPL"} Reports Strong Q4 Earnings, Beats Expectations`,
-        source: "Reuters",
-        time: "2 hours ago",
-        summary: "The company reported quarterly earnings that exceeded analyst expectations, driven by strong demand in key markets.",
-      },
-      {
-        title: `Analysts Upgrade ${symbol || "AAPL"} Stock Following Product Launch`,
-        source: "Bloomberg",
-        time: "5 hours ago",
-        summary: "Several major investment banks have upgraded their price targets following the successful launch of new products.",
-      },
-      {
-        title: `${symbol || "AAPL"} Expands AI Capabilities with New Partnership`,
-        source: "CNBC",
-        time: "1 day ago",
-        summary: "The tech giant announced a strategic partnership to enhance its artificial intelligence offerings across its product lineup.",
-      },
-      {
-        title: `Market Watch: ${symbol || "AAPL"} Trading Volume Surges`,
-        source: "MarketWatch",
-        time: "1 day ago",
-        summary: "Trading activity has increased significantly as investors react to recent market developments and sector rotation.",
-      },
+      { title: `${symbol || "AAPL"} Reports Strong Q4 Earnings`, source: "Reuters", time: "2h ago" },
+      { title: `Analysts Upgrade ${symbol || "AAPL"} Following Product Launch`, source: "Bloomberg", time: "5h ago" },
+      { title: `${symbol || "AAPL"} Expands AI Capabilities`, source: "CNBC", time: "1d ago" },
     ],
     fundamentals: {
       marketCap: "2.8T",
@@ -101,22 +105,17 @@ const StockDetail = () => {
       dividendYield: "0.52%",
       week52High: 199.62,
       week52Low: 164.08,
-      volume: "52.3M",
-      avgVolume: "56.2M",
       eps: 6.05,
-      revenue: "383.3B",
-      profitMargin: "25.3%",
     },
   };
 
-  // Check if stock is already in user's portfolio
+  // Check portfolio
   useEffect(() => {
     const checkPortfolio = async () => {
       if (!user || !symbol) {
         setPortfolioLoading(false);
         return;
       }
-
       try {
         const { data, error } = await supabase
           .from('user_portfolio')
@@ -124,7 +123,6 @@ const StockDetail = () => {
           .eq('user_id', user.id)
           .eq('asset_name', symbol)
           .maybeSingle();
-
         if (error) throw error;
         setIsInPortfolio(!!data);
       } catch (error) {
@@ -133,51 +131,32 @@ const StockDetail = () => {
         setPortfolioLoading(false);
       }
     };
-
-    if (!authLoading) {
-      checkPortfolio();
-    }
+    if (!authLoading) checkPortfolio();
   }, [user, symbol, authLoading]);
 
   const handleAddToPortfolio = async () => {
     if (!user || !symbol) return;
-
     const price = parseFloat(buyInPrice);
     const qty = parseFloat(quantity);
-
-    if (isNaN(price) || price <= 0) {
-      toast.error("Please enter a valid buy-in price");
-      return;
-    }
-
-    if (isNaN(qty) || qty <= 0) {
-      toast.error("Please enter a valid quantity");
-      return;
-    }
-
+    if (isNaN(price) || price <= 0) { toast.error("Please enter a valid buy-in price"); return; }
+    if (isNaN(qty) || qty <= 0) { toast.error("Please enter a valid quantity"); return; }
     setIsAdding(true);
-
     try {
-      const { error } = await supabase
-        .from('user_portfolio')
-        .insert({
-          user_id: user.id,
-          asset_name: symbol,
-          asset_type: 'stock',
-          purchase_price: price,
-          current_price: stockData.price,
-          quantity: qty,
-        });
-
+      const { error } = await supabase.from('user_portfolio').insert({
+        user_id: user.id,
+        asset_name: symbol,
+        asset_type: 'stock',
+        purchase_price: price,
+        current_price: stockData.price,
+        quantity: qty,
+      });
       if (error) throw error;
-
       setIsInPortfolio(true);
       setAddDialogOpen(false);
       toast.success(`${symbol} added to your portfolio!`);
       setBuyInPrice("");
       setQuantity("1");
     } catch (error: any) {
-      console.error('Error adding to portfolio:', error);
       toast.error(error.message || "Failed to add to portfolio");
     } finally {
       setIsAdding(false);
@@ -186,13 +165,8 @@ const StockDetail = () => {
 
   function getStockName(sym: string): string {
     const names: Record<string, string> = {
-      AAPL: "Apple Inc.",
-      GOOGL: "Alphabet Inc.",
-      MSFT: "Microsoft Corporation",
-      AMZN: "Amazon.com Inc.",
-      TSLA: "Tesla Inc.",
-      META: "Meta Platforms Inc.",
-      NVDA: "NVIDIA Corporation",
+      AAPL: "Apple Inc.", GOOGL: "Alphabet Inc.", MSFT: "Microsoft Corporation",
+      AMZN: "Amazon.com Inc.", TSLA: "Tesla Inc.", META: "Meta Platforms Inc.", NVDA: "NVIDIA Corporation",
     };
     return names[sym] || `${sym} Inc.`;
   }
@@ -210,294 +184,287 @@ const StockDetail = () => {
     return "Sell";
   };
 
+  const handleSendMessage = () => {
+    if (!chatInput.trim()) return;
+    setChatMessages(prev => [
+      ...prev,
+      { role: 'user', text: chatInput },
+      { role: 'ai', text: `Based on your ${stockData.strategyName} strategy and current market conditions, ${symbol} shows strong momentum. The stock aligns well with your growth objectives. Consider the current P/E of ${stockData.fundamentals.peRatio} and recent positive earnings surprises.` }
+    ]);
+    setChatInput("");
+  };
+
+  const timePeriods: TimePeriod[] = ["1D", "6M", "YTD", "1Y", "5Y"];
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-secondary/20">
       <Header />
       <main className="flex-1 pt-24 pb-12">
-        <div className="container mx-auto px-4 max-w-6xl">
+        <div className="container mx-auto px-4 max-w-7xl">
           {/* Back Button */}
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="mb-6"
-          >
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
 
-          {/* Stock Header */}
-          <div className="mb-8 animate-fade-in">
-            <div className="flex items-center justify-between flex-wrap gap-4 mb-2">
-              <div className="flex items-center gap-4">
-                <h1 className="text-4xl font-display font-bold text-foreground">
-                  {stockData.symbol}
-                </h1>
-                <Badge variant="secondary" className="text-sm">
-                  {stockData.name}
-                </Badge>
-              </div>
-              
-              {/* Add to Portfolio Button */}
-              {user && !authLoading && (
-                portfolioLoading ? (
-                  <Button disabled variant="outline">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </Button>
-                ) : isInPortfolio ? (
-                  <Button variant="outline" disabled className="text-primary border-primary">
-                    <Check className="mr-2 h-4 w-4" />
-                    In Portfolio
-                  </Button>
-                ) : (
-                  <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="default">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add to Portfolio
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add {symbol} to Portfolio</DialogTitle>
-                        <DialogDescription>
-                          Enter your buy-in price and quantity to track this stock in your portfolio.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="buyInPrice">Buy-in Price ($)</Label>
-                          <Input
-                            id="buyInPrice"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder={stockData.price.toString()}
-                            value={buyInPrice}
-                            onChange={(e) => setBuyInPrice(e.target.value)}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Current price: ${stockData.price.toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="quantity">Quantity (shares)</Label>
-                          <Input
-                            id="quantity"
-                            type="number"
-                            step="1"
-                            min="1"
-                            placeholder="1"
-                            value={quantity}
-                            onChange={(e) => setQuantity(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleAddToPortfolio} disabled={isAdding}>
-                          {isAdding ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Adding...
-                            </>
-                          ) : (
-                            "Add to Portfolio"
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                )
-              )}
-            </div>
-            <div className="flex items-baseline gap-4">
-              <span className="text-3xl font-bold text-foreground">
-                ${stockData.price.toFixed(2)}
-              </span>
-              <span
-                className={`flex items-center gap-1 text-lg font-semibold ${
-                  stockData.change >= 0 ? "text-primary" : "text-destructive"
-                }`}
-              >
-                {stockData.change >= 0 ? (
-                  <TrendingUp className="h-5 w-5" />
-                ) : (
-                  <TrendingDown className="h-5 w-5" />
-                )}
-                {stockData.change >= 0 ? "+" : ""}
-                {stockData.change.toFixed(2)} ({stockData.changePercent.toFixed(2)}%)
-              </span>
-            </div>
-          </div>
-
-          {/* PRIMARY SECTION: News & Chart */}
+          {/* Hero: Symbol Info + Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Top News */}
-            <Card className="shadow-card border-border/50 animate-fade-in bg-gradient-to-br from-card to-card/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Newspaper className="h-5 w-5 text-primary" />
-                  Top News
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {stockData.news.map((item, index) => (
-                    <div
-                      key={index}
-                      className="p-4 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-semibold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">
-                          {item.title}
-                        </h4>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                        {item.summary}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {item.source}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{item.time}</span>
+            {/* Left: Symbol, Price, Info */}
+            <Card className="shadow-card border-border/50 bg-gradient-to-br from-card to-card/50">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h1 className="text-5xl font-display font-bold text-foreground">{stockData.symbol}</h1>
+                      {user && !authLoading && (
+                        portfolioLoading ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        ) : isInPortfolio ? (
+                          <Badge variant="outline" className="text-primary border-primary"><Check className="mr-1 h-3 w-3" />In Portfolio</Badge>
+                        ) : (
+                          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="outline"><Plus className="mr-1 h-3 w-3" />Add</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Add {symbol} to Portfolio</DialogTitle>
+                                <DialogDescription>Enter your buy-in price and quantity.</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="buyInPrice">Buy-in Price ($)</Label>
+                                  <Input id="buyInPrice" type="number" step="0.01" min="0" placeholder={stockData.price.toString()} value={buyInPrice} onChange={(e) => setBuyInPrice(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="quantity">Quantity (shares)</Label>
+                                  <Input id="quantity" type="number" step="1" min="1" placeholder="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleAddToPortfolio} disabled={isAdding}>
+                                  {isAdding ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</> : "Add"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        )
+                      )}
+                    </div>
+                    <p className="text-lg text-muted-foreground mb-4">{stockData.name}</p>
+                    <div className="flex items-center gap-2 mb-4">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{stockData.industry}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-sm text-muted-foreground">{stockData.sector}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price */}
+                <div className="mb-6">
+                  <div className="flex items-baseline gap-3 mb-1">
+                    <span className="text-4xl font-bold text-foreground">${stockData.price.toFixed(2)}</span>
+                    <span className={`flex items-center gap-1 text-lg font-semibold ${stockData.change >= 0 ? "text-primary" : "text-destructive"}`}>
+                      {stockData.change >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+                      {stockData.change >= 0 ? "+" : ""}{stockData.change.toFixed(2)} ({stockData.changePercent.toFixed(2)}%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Recommendation Score */}
+                <div className="p-4 bg-secondary/30 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-5 w-5 text-primary" />
+                      <span className="font-semibold">Recommendation</span>
+                    </div>
+                    <Badge variant="outline" className="text-xs">{stockData.strategyName}</Badge>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`text-4xl font-bold ${getScoreColor(stockData.recommendationScore)}`}>
+                      {stockData.recommendationScore}
+                    </span>
+                    <div className="flex-1">
+                      <Progress value={stockData.recommendationScore} className="h-2 mb-1" />
+                      <div className="flex justify-between items-center">
+                        <span className={`text-sm font-medium ${getScoreColor(stockData.recommendationScore)}`}>
+                          {getScoreLabel(stockData.recommendationScore)}
+                        </span>
+                        {user && stockData.portfolioGrowth && (
+                          <span className="text-xs text-primary font-medium">Portfolio: {stockData.portfolioGrowth}</span>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Price Chart */}
-            <Card className="shadow-card border-border/50 animate-fade-in bg-gradient-to-br from-card to-card/50">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Price Chart (30 Days)</span>
-                  <Badge variant={stockData.change >= 0 ? "default" : "destructive"} className="text-sm">
-                    {stockData.change >= 0 ? "+" : ""}{stockData.changePercent.toFixed(2)}%
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[320px]">
+            {/* Right: Minimal Chart */}
+            <Card className="shadow-card border-border/50 bg-gradient-to-br from-card to-card/50">
+              <CardContent className="pt-6 h-full flex flex-col">
+                {/* Time Period Selector */}
+                <div className="flex gap-1 mb-4">
+                  {timePeriods.map((period) => (
+                    <Button
+                      key={period}
+                      variant={selectedPeriod === period ? "default" : "ghost"}
+                      size="sm"
+                      className="text-xs px-3"
+                      onClick={() => setSelectedPeriod(period)}
+                    >
+                      {period}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Chart */}
+                <div className="flex-1 min-h-[200px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={priceData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis 
-                        dataKey="date" 
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis 
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                        domain={['dataMin - 5', 'dataMax + 5']}
-                        tickFormatter={(value) => `$${value}`}
-                      />
+                      <YAxis domain={['dataMin', 'dataMax']} hide />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                         }}
-                        labelStyle={{ color: 'hsl(var(--foreground))' }}
                         formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
+                        labelFormatter={() => ''}
                       />
                       <Line
                         type="monotone"
                         dataKey="price"
-                        stroke="hsl(var(--primary))"
+                        stroke={priceChange >= 0 ? "hsl(var(--primary))" : "hsl(var(--destructive))"}
                         strokeWidth={2}
                         dot={false}
-                        activeDot={{ r: 6, fill: 'hsl(var(--primary))' }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-border/50">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Market Cap</p>
+                    <p className="font-semibold text-sm">${stockData.fundamentals.marketCap}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">P/E Ratio</p>
+                    <p className="font-semibold text-sm">{stockData.fundamentals.peRatio}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">EPS</p>
+                    <p className="font-semibold text-sm">${stockData.fundamentals.eps}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Recommendation Score */}
-          <Card className="mb-6 shadow-card border-border/50 animate-fade-in bg-gradient-to-br from-card to-card/50">
+          {/* Main Content: AI Chat */}
+          <Card className="shadow-card border-border/50 bg-gradient-to-br from-card to-card/50 mb-6">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Recommendation Score</span>
-                {authLoading ? (
-                  <Badge variant="outline" className="text-sm">
-                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                    Loading...
-                  </Badge>
-                ) : user ? (
-                  <Badge variant="outline" className="text-sm">
-                    Based on: {stockData.strategyName}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-sm">
-                    Sign in for personalized scores
-                  </Badge>
-                )}
-              </CardTitle>
+              <div className="flex items-center gap-3">
+                <img src={mascotImage} alt="Tradlyte" className="w-12 h-12 rounded-full" />
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                    Tradlyte AI Analyst
+                  </CardTitle>
+                  <CardDescription>Personalized insights based on your strategy and portfolio</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className={`text-5xl font-bold ${getScoreColor(stockData.recommendationScore)}`}>
-                    {stockData.recommendationScore}
-                  </span>
-                  <span className={`text-2xl font-semibold ${getScoreColor(stockData.recommendationScore)}`}>
-                    {getScoreLabel(stockData.recommendationScore)}
-                  </span>
-                </div>
-                <Progress value={stockData.recommendationScore} className="h-3" />
-                <p className="text-sm text-muted-foreground">
-                  {user
-                    ? "This score is calculated based on your personal investment strategy and risk preferences."
-                    : "This is a default recommendation score. Sign in to get personalized recommendations based on your strategy."}
-                </p>
+              {/* Chat Messages */}
+              <div className="space-y-4 max-h-[400px] overflow-y-auto mb-4 p-4 bg-secondary/20 rounded-lg">
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`flex items-start gap-3 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
+                    {msg.role === 'ai' && (
+                      <img src={mascotImage} alt="AI" className="w-10 h-10 rounded-full flex-shrink-0" />
+                    )}
+                    <div className={`rounded-lg p-4 max-w-[85%] ${
+                      msg.role === 'ai' 
+                        ? 'bg-card border border-border text-foreground' 
+                        : 'bg-primary text-primary-foreground'
+                    }`}>
+                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
+
+              {/* Quick Prompts */}
+              {user && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("What's a good entry point for this stock?")}>
+                    Entry point?
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("How does this stock fit my portfolio?")}>
+                    Portfolio fit?
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("What are the main risks?")}>
+                    Risks?
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setChatInput("Compare to similar stocks")}>
+                    Compare
+                  </Button>
+                </div>
+              )}
+
+              {/* Chat Input */}
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder={user ? "Ask about this stock, entry points, risks, or portfolio fit..." : "Sign in to chat with Tradlyte AI"}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="min-h-[60px] resize-none"
+                  disabled={!user}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                />
+                <Button onClick={handleSendMessage} disabled={!user || !chatInput.trim()} className="self-end">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+              {!user && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate('/auth')}>Sign in</Button>
+                  {" "}to get personalized AI insights based on your strategy.
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* SECONDARY SECTION: Correlated Indices & Fundamentals */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Correlated Indices */}
-            <Card className="shadow-card border-border/50 animate-fade-in">
-              <CardHeader>
-                <CardTitle>Correlated Indicators</CardTitle>
+          {/* Secondary: News, Indicators, Fundamentals */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* News */}
+            <Card className="shadow-card border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Newspaper className="h-4 w-4 text-primary" />
+                  Latest News
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {stockData.correlatedIndices.map((index) => (
-                    <div
-                      key={index.name}
-                      className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <div className="font-semibold text-foreground text-sm">{index.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {index.price} · Correlation: {index.correlation > 0 ? "+" : ""}{(index.correlation * 100).toFixed(0)}%
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Progress 
-                          value={Math.abs(index.correlation) * 100} 
-                          className={`w-16 h-2 ${index.correlation < 0 ? '[&>div]:bg-destructive' : ''}`}
-                        />
-                        <span
-                          className={`text-sm font-semibold w-16 text-right ${
-                            index.change >= 0 ? "text-primary" : "text-destructive"
-                          }`}
-                        >
-                          {index.change >= 0 ? "+" : ""}
-                          {index.change.toFixed(2)}%
-                        </span>
+                  {stockData.news.map((item, idx) => (
+                    <div key={idx} className="p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group">
+                      <h4 className="font-medium text-foreground text-sm leading-tight group-hover:text-primary transition-colors line-clamp-2">
+                        {item.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-muted-foreground">{item.source}</span>
+                        <span className="text-xs text-muted-foreground">·</span>
+                        <span className="text-xs text-muted-foreground">{item.time}</span>
+                        <ExternalLink className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </div>
                   ))}
@@ -505,60 +472,50 @@ const StockDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Fundamentals */}
-            <Card className="shadow-card border-border/50 animate-fade-in">
-              <CardHeader>
-                <CardTitle>Key Fundamentals</CardTitle>
+            {/* Correlated Indicators */}
+            <Card className="shadow-card border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Correlated Indicators</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">Market Cap</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      ${stockData.fundamentals.marketCap}
+                <div className="space-y-3">
+                  {stockData.correlatedIndices.map((index) => (
+                    <div key={index.name} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{index.name}</p>
+                        <p className="text-xs text-muted-foreground">{index.price}</p>
+                      </div>
+                      <span className={`text-sm font-semibold ${index.change >= 0 ? "text-primary" : "text-destructive"}`}>
+                        {index.change >= 0 ? "+" : ""}{index.change.toFixed(1)}%
+                      </span>
                     </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Key Fundamentals */}
+            <Card className="shadow-card border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Key Fundamentals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-secondary/30 rounded-lg">
+                    <p className="text-xs text-muted-foreground">52W High</p>
+                    <p className="font-semibold text-sm">${stockData.fundamentals.week52High}</p>
                   </div>
                   <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">P/E Ratio</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {stockData.fundamentals.peRatio}
-                    </div>
+                    <p className="text-xs text-muted-foreground">52W Low</p>
+                    <p className="font-semibold text-sm">${stockData.fundamentals.week52Low}</p>
                   </div>
                   <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">Dividend Yield</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {stockData.fundamentals.dividendYield}
-                    </div>
+                    <p className="text-xs text-muted-foreground">Dividend</p>
+                    <p className="font-semibold text-sm">{stockData.fundamentals.dividendYield}</p>
                   </div>
                   <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">EPS</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      ${stockData.fundamentals.eps}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">52W High</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      ${stockData.fundamentals.week52High}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">52W Low</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      ${stockData.fundamentals.week52Low}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">Volume</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {stockData.fundamentals.volume}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-secondary/30 rounded-lg">
-                    <div className="text-xs text-muted-foreground mb-1">Profit Margin</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {stockData.fundamentals.profitMargin}
-                    </div>
+                    <p className="text-xs text-muted-foreground">Market Cap</p>
+                    <p className="font-semibold text-sm">${stockData.fundamentals.marketCap}</p>
                   </div>
                 </div>
               </CardContent>
