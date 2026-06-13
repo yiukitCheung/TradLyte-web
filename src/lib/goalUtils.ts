@@ -7,6 +7,168 @@ export interface Milestone {
   order: number;
 }
 
+export type GoalDisplayStatus = "on_track" | "behind" | "summit";
+
+export interface UserGoalView {
+  id: string;
+  title: string;
+  description: string | null;
+  target_amount: number;
+  current_amount: number;
+  target_date: string | null;
+  status: GoalDisplayStatus;
+  progress: number;
+  milestones: Milestone[];
+}
+
+interface StoredMilestone {
+  id: string;
+  title: string;
+  financialTarget: number;
+  description: string;
+  order: number;
+}
+
+export function parseMilestonesFromDb(stored: unknown, currentAmount: number): Milestone[] {
+  if (!Array.isArray(stored) || stored.length === 0) return [];
+  return (stored as StoredMilestone[])
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      financialTarget: m.financialTarget ?? 0,
+      description: m.description ?? "",
+      order: m.order ?? 0,
+      completed: currentAmount >= (m.financialTarget ?? 0),
+    }));
+}
+
+export function pickSummitGoalId(
+  goals: Array<{ id: string; target_date: string | null; target_amount: number }>,
+): string | null {
+  if (goals.length === 0) return null;
+  const sorted = goals.slice().sort((a, b) => {
+    const aDate = a.target_date ? new Date(a.target_date).getTime() : 0;
+    const bDate = b.target_date ? new Date(b.target_date).getTime() : 0;
+    if (bDate !== aDate) return bDate - aDate;
+    return b.target_amount - a.target_amount;
+  });
+  return sorted[0]?.id ?? null;
+}
+
+export function isGoalBehindPace(progress: number, targetDate: string | null): boolean {
+  if (progress >= 100) return false;
+  if (!targetDate) return false;
+  return new Date(targetDate) < new Date();
+}
+
+export function mapUserGoalRow(
+  g: {
+    id: string;
+    title: string;
+    description: string | null;
+    target_amount: number | null;
+    current_amount: number | null;
+    target_date: string | null;
+    status: string | null;
+    milestones?: unknown;
+  },
+  summitGoalId: string | null,
+): UserGoalView {
+  const target = g.target_amount ? parseFloat(g.target_amount.toString()) : 0;
+  const current = g.current_amount ? parseFloat(g.current_amount.toString()) : 0;
+  const progress = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+  const behind = g.status === "behind" || isGoalBehindPace(progress, g.target_date);
+
+  let status: GoalDisplayStatus = "on_track";
+  if (g.id === summitGoalId) status = "summit";
+  else if (behind) status = "behind";
+
+  return {
+    id: g.id,
+    title: g.title,
+    description: g.description,
+    target_amount: target,
+    current_amount: current,
+    target_date: g.target_date,
+    status,
+    progress,
+    milestones: parseMilestonesFromDb(g.milestones, current),
+  };
+}
+
+export function computeMonthlyContributions(
+  goals: Array<{
+    id: string;
+    title: string;
+    target_amount: number;
+    current_amount: number;
+    target_date: string | null;
+  }>,
+): Array<{ goalId: string; goal: string; amount: number; pct: number }> {
+  const items = goals.map((g) => {
+    const remaining = Math.max(0, g.target_amount - g.current_amount);
+    if (!g.target_date || remaining <= 0) {
+      return { goalId: g.id, goal: g.title, amount: 0, pct: 0 };
+    }
+    const now = new Date();
+    const target = new Date(g.target_date);
+    const monthsLeft = Math.max(
+      1,
+      (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()),
+    );
+    const amount = Math.round(remaining / monthsLeft);
+    return { goalId: g.id, goal: g.title, amount, pct: 0 };
+  });
+  const max = Math.max(...items.map((i) => i.amount), 1);
+  return items.map((i) => ({ ...i, pct: (i.amount / max) * 100 }));
+}
+
+export interface ParsedAiGoal {
+  title: string;
+  target_amount: number;
+  target_date: string | null;
+  why: string | null;
+}
+
+/**
+ * Parse an AI goal-planner response into a validated goal draft. The model is
+ * asked for bare JSON but may wrap it in prose or a ```json fence, so we extract
+ * the first balanced object and validate every field. Returns null on anything
+ * we can't trust — the caller falls back to the manual dialog.
+ */
+export function parseAiGoal(raw: string): ParsedAiGoal | null {
+  if (!raw || typeof raw !== "string") return null;
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const title = typeof obj.title === "string" ? obj.title.trim() : "";
+  if (!title) return null;
+
+  const amountRaw = obj.target_amount;
+  const amount = typeof amountRaw === "number" ? amountRaw : Number(String(amountRaw ?? "").replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  let target_date: string | null = null;
+  if (typeof obj.target_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(obj.target_date.trim())) {
+    const d = new Date(`${obj.target_date.trim()}T12:00:00`);
+    if (!Number.isNaN(d.getTime())) target_date = obj.target_date.trim();
+  }
+
+  const why = typeof obj.why === "string" && obj.why.trim() ? obj.why.trim() : null;
+
+  return { title, target_amount: Math.round(amount), target_date, why };
+}
+
 export const generateMilestones = (goalTitle: string, targetAmount: number): Milestone[] => {
   const goalLower = goalTitle.toLowerCase();
   const milestones: Milestone[] = [];

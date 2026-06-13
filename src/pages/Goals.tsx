@@ -1,554 +1,504 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Target, CheckCircle2, Circle, Plus, X, Trash2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { type Milestone } from '@/lib/goalUtils';
+  Sparkles,
+  WandSparkles,
+  TrendingUp,
+  ArrowRight,
+  Plus,
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  computeMonthlyContributions,
+  generateMilestones,
+  mapUserGoalRow,
+  parseAiGoal,
+  pickSummitGoalId,
+  type UserGoalView,
+} from "@/lib/goalUtils";
+import { fetchProfilePurpose } from "@/lib/purposeUtils";
+import { requestAiChat } from "@/lib/aiChat";
 
-/** Stored in DB: no "completed" (computed from current_amount when displaying) */
-interface StoredMilestone {
-  id: string;
-  title: string;
-  financialTarget: number;
-  description: string;
-  order: number;
-}
+const milestoneChips: Array<{ label: string; prompt: string }> = [
+  { label: "Buy a home", prompt: "Save for a home down payment" },
+  { label: "Emergency fund", prompt: "Build a 6-month emergency fund" },
+  { label: "Kids' college", prompt: "Save for my kids' college education" },
+];
 
-interface Goal {
-  id: string;
-  title: string;
-  description: string | null;
-  target_amount: number | null;
-  current_amount: number | null;
-  target_date: string | null;
-  status: string | null;
-  milestones: Milestone[];
-  progress: number;
-}
+const GOAL_PLANNER_SYSTEM =
+  "You convert a person's plain-language savings goal into structured JSON. " +
+  "Return ONLY a JSON object, no prose, with keys: " +
+  '"title" (short label, e.g. "Retirement freedom"), ' +
+  '"target_amount" (number in USD, no symbols or commas), ' +
+  '"target_date" (YYYY-MM-DD or null if none implied), ' +
+  '"why" (one short sentence on the meaning behind it). ' +
+  "Infer a sensible target_date from phrases like \"by 55\" or \"in 10 years\" using the current year. " +
+  "If an amount is not stated, estimate a reasonable one for the described goal.";
+
+const fmt = (n: number) => `$${n.toLocaleString()}`;
+const dateParts = (iso: string | null) => {
+  if (!iso) return { year: "—", month: "" };
+  const d = new Date(iso);
+  return { year: String(d.getFullYear()), month: d.toLocaleDateString("en-US", { month: "long" }) };
+};
+
+const statusDot: Record<string, string> = {
+  on_track: "bg-positive",
+  behind: "bg-negative",
+  summit: "bg-ink",
+};
 
 const Goals = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goals, setGoals] = useState<UserGoalView[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newGoalTitle, setNewGoalTitle] = useState('');
-  const [newGoalDescription, setNewGoalDescription] = useState('');
-  const [newGoalAmount, setNewGoalAmount] = useState('');
-  const [newGoalDate, setNewGoalDate] = useState('');
-  const [newMilestones, setNewMilestones] = useState<{ id: string; title: string; financialTarget: string; description: string }[]>([]);
-  const [goalToDelete, setGoalToDelete] = useState<Goal | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState("");
+  const [purposeStatement, setPurposeStatement] = useState<string | null>(null);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
-    // Wait for auth to finish loading before checking
-    if (authLoading) {
-      return;
-    }
-    
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
-    
-    fetchGoals();
+    if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
 
-  const fetchGoals = async () => {
+  const fetchGoals = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('user_goals')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const [{ data, error }, profile] = await Promise.all([
+        supabase
+          .from("user_goals")
+          .select("id, title, description, target_amount, current_amount, target_date, status, milestones")
+          .eq("user_id", user.id)
+          .order("target_date", { ascending: true, nullsFirst: false }),
+        fetchProfilePurpose(user.id),
+      ]);
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      if (error) throw error;
+      setPurposeStatement(profile?.purpose_statement?.trim() || null);
 
-      const goalsWithMilestones = (data || []).map(goal => {
-        try {
-          const targetAmount = goal.target_amount ? parseFloat(goal.target_amount.toString()) : 0;
-          const currentAmount = goal.current_amount ? parseFloat(goal.current_amount.toString()) : 0;
-          const stored = (goal as { milestones?: StoredMilestone[] }).milestones;
-          const rawMilestones = Array.isArray(stored) && stored.length > 0 ? stored : [];
-          const milestones: Milestone[] = rawMilestones
-            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-            .map(m => ({
-              id: m.id,
-              title: m.title,
-              financialTarget: m.financialTarget ?? 0,
-              description: m.description ?? '',
-              order: m.order ?? 0,
-              completed: currentAmount >= (m.financialTarget ?? 0)
-            }));
-
-          const progress = targetAmount > 0
-            ? Math.min(100, (currentAmount / targetAmount) * 100)
-            : 0;
-
-          return {
-            ...goal,
-            milestones,
-            progress
-          };
-        } catch (err) {
-          console.error('Error processing goal:', err, goal);
-          return {
-            ...goal,
-            milestones: [],
-            progress: 0
-          };
-        }
-      });
-
-      setGoals(goalsWithMilestones);
-    } catch (error: any) {
-      console.error('Error fetching goals:', error);
-      toast.error(error.message || 'Failed to load goals. Please refresh the page.');
+      const rows = data ?? [];
+      const summitGoalId = pickSummitGoalId(
+        rows.map((g) => ({
+          id: g.id,
+          target_date: g.target_date,
+          target_amount: g.target_amount ? parseFloat(g.target_amount.toString()) : 0,
+        })),
+      );
+      setGoals(rows.map((g) => mapUserGoalRow(g, summitGoalId)));
+    } catch (e) {
+      console.error("Failed to load goals:", e);
+      toast.error("Could not load your goals. Please refresh.");
       setGoals([]);
     } finally {
       setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchGoals();
+  }, [fetchGoals]);
+
+  const handleAiPlan = async (descOverride?: string) => {
+    const description = (descOverride ?? aiInput).trim();
+    if (!description) return toast.error("Describe the goal you're saving for");
+    if (descOverride) setAiInput(descOverride);
+    setAiLoading(true);
+    try {
+      // Ground the planner in the user's purpose + existing goals so it stays coherent.
+      const contextLines = [
+        purposeStatement ? `My investing purpose: ${purposeStatement}` : null,
+        goals.length
+          ? `Goals I already have: ${goals.map((g) => `${g.title} ($${(g.target_amount || 0).toLocaleString()})`).join("; ")}`
+          : null,
+      ].filter(Boolean);
+      const userText = contextLines.length
+        ? `${description}\n\nFor context:\n${contextLines.join("\n")}`
+        : description;
+
+      const text = await requestAiChat({
+        system: GOAL_PLANNER_SYSTEM,
+        messages: [{ role: "user", content: [{ type: "text", text: userText }] }],
+      });
+      const parsed = parseAiGoal(text);
+      if (!parsed) {
+        toast.error("Couldn't shape that into a goal — try adding it manually.");
+        setAddOpen(true);
+        return;
+      }
+      // AI suggests; the user confirms in the dialog before anything is saved.
+      setTitle(parsed.title);
+      setAmount(String(parsed.target_amount));
+      setDate(parsed.target_date ?? "");
+      setAddOpen(true);
+      toast.success("Drafted your goal — review and create it.");
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : "";
+      const friendly = /invalid api key|authentication|minimax|50\d/i.test(raw)
+        ? "AI planner is offline right now — add your goal manually below."
+        : raw || "AI planner is unavailable right now";
+      toast.error(friendly);
+      setAddOpen(true);
+    } finally {
+      setAiLoading(false);
     }
   };
 
   const handleAddGoal = async () => {
     if (!user) return;
-    if (!newGoalTitle.trim()) {
-      toast.error('Please enter a goal title');
-      return;
-    }
-    if (!newGoalAmount || parseFloat(newGoalAmount) <= 0) {
-      toast.error('Please enter a valid target amount');
-      return;
-    }
+    if (!title.trim()) return toast.error("Please enter a goal title");
+    if (!amount || parseFloat(amount) <= 0) return toast.error("Please enter a valid target amount");
 
-    try {
-      const milestonesToStore: StoredMilestone[] = newMilestones
-        .filter(m => m.title.trim() !== '')
-        .map((m, i) => ({
-          id: m.id || `m-${Date.now()}-${i}`,
-          title: m.title.trim(),
-          financialTarget: parseFloat(m.financialTarget) || 0,
-          description: m.description.trim() || '',
-          order: i + 1
-        }));
+    const targetAmount = parseFloat(amount);
+    const milestones = generateMilestones(title.trim(), targetAmount).map((m) => ({
+      id: m.id,
+      title: m.title,
+      financialTarget: m.financialTarget,
+      description: m.description,
+      order: m.order,
+    }));
 
-      const { error } = await supabase
-        .from('user_goals')
-        .insert({
-          user_id: user.id,
-          title: newGoalTitle,
-          description: newGoalDescription.trim() || null,
-          target_amount: parseFloat(newGoalAmount),
-          current_amount: 0,
-          target_date: newGoalDate || null,
-          status: 'active',
-          milestones: milestonesToStore
-        });
-
-      if (error) throw error;
-
-      toast.success('Goal created successfully!');
-      setAddDialogOpen(false);
-      setNewGoalTitle('');
-      setNewGoalDescription('');
-      setNewGoalAmount('');
-      setNewGoalDate('');
-      setNewMilestones([]);
-      fetchGoals();
-    } catch (error: any) {
-      console.error('Error adding goal:', error);
-      toast.error(error.message || 'Failed to create goal');
-    }
+    const { error } = await supabase.from("user_goals").insert({
+      user_id: user.id,
+      title: title.trim(),
+      target_amount: targetAmount,
+      current_amount: 0,
+      target_date: date || null,
+      status: "active",
+      milestones: milestones as unknown as Json,
+    });
+    if (error) return toast.error(error.message || "Failed to create goal");
+    toast.success("Goal created!");
+    setAddOpen(false);
+    setTitle("");
+    setAmount("");
+    setDate("");
+    setAiInput("");
+    fetchGoals();
   };
 
-  const handleDeleteGoal = async () => {
-    if (!goalToDelete || !user) return;
-    setDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('user_goals')
-        .delete()
-        .eq('id', goalToDelete.id)
-        .eq('user_id', user.id);
-      if (error) throw error;
-      toast.success('Goal deleted');
-      setGoalToDelete(null);
-      fetchGoals();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete goal');
-    } finally {
-      setDeleting(false);
-    }
-  };
+  const totalCommitted = goals.reduce((s, g) => s + (g.target_amount || 0), 0);
+  const totalSaved = goals.reduce((s, g) => s + (g.current_amount || 0), 0);
+  const contributions = useMemo(() => computeMonthlyContributions(goals), [goals]);
+  const monthlyTotal = contributions.reduce((s, c) => s + c.amount, 0);
+  const behindCount = goals.filter((g) => g.status === "behind").length;
+  const summitGoal = goals.find((g) => g.status === "summit") ?? null;
 
-  // Show loading while auth is loading or goals are loading
-  if (authLoading || loading) {
+  const horizonSubtitle =
+    goals.length === 0
+      ? "Add your first goal and TradLyte will map the path your portfolio is funding."
+      : goals.length === 1
+        ? "One future with a date attached — the path your portfolio is funding."
+        : `${goals.length} futures, each with a date attached. This is the path your portfolio is funding — ordered by when they arrive.`;
+
+  if (authLoading || (loading && goals.length === 0)) {
     return (
-      <div className="min-h-screen flex flex-col bg-background">
+      <div className="flex min-h-screen flex-col bg-surface-primary">
         <Header />
-        <main className="flex-1 flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="text-2xl font-semibold mb-2">Loading your goals...</div>
-            <div className="text-muted-foreground">Please wait</div>
-          </div>
+        <main className="flex flex-1 items-center justify-center">
+          <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading your goals…
+          </span>
         </main>
         <Footer />
       </div>
     );
   }
 
-  // If no user after loading, this will be handled by the useEffect redirect
-  if (!user) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-surface-primary">
       <Header />
-      <main className="flex-1 py-8">
-        <div className="container mx-auto px-4 space-y-8 flex-1 flex flex-col">
-          <div className="max-w-6xl mx-auto w-full">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <Target className="h-8 w-8 text-primary" />
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">
-                    Life Goals Journey
-                  </h1>
-                  <p className="text-muted-foreground">
-                    Let Tradlyte guide you to discover and achieve your dreams through smart financial planning
-                  </p>
-                </div>
-              </div>
-              <Dialog open={addDialogOpen} onOpenChange={(open) => {
-                setAddDialogOpen(open);
-                if (!open) {
-                  setNewGoalTitle('');
-                  setNewGoalDescription('');
-                  setNewGoalAmount('');
-                  setNewGoalDate('');
-                  setNewMilestones([]);
-                }
-              }}>
-                <DialogTrigger asChild>
-                  <Button 
-                    className="shadow-elegant"
-                    onClick={() => setAddDialogOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add New Goal
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-y-auto max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Create New Goal</DialogTitle>
-                    <DialogDescription>
-                      Set your goal and add your own milestones to track progress
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="goal-title">Goal Title *</Label>
-                      <Input
-                        id="goal-title"
-                        value={newGoalTitle}
-                        onChange={(e) => setNewGoalTitle(e.target.value)}
-                        placeholder="e.g., Buy Dream Home, Emergency Fund, Retirement"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="goal-description">Description (optional)</Label>
-                      <Textarea
-                        id="goal-description"
-                        value={newGoalDescription}
-                        onChange={(e) => setNewGoalDescription(e.target.value)}
-                        placeholder="Why is this goal important to you?"
-                        className="min-h-[80px]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="goal-amount">Target Amount ($) *</Label>
-                      <Input
-                        id="goal-amount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={newGoalAmount}
-                        onChange={(e) => setNewGoalAmount(e.target.value)}
-                        placeholder="e.g., 50000"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="goal-date">Target Date (optional)</Label>
-                      <Input
-                        id="goal-date"
-                        type="date"
-                        value={newGoalDate}
-                        onChange={(e) => setNewGoalDate(e.target.value)}
-                      />
-                    </div>
+      <main className="mx-auto w-full max-w-[1440px] flex-1">
+        {/* Masthead */}
+        <section className="flex flex-col items-start justify-between gap-8 px-6 pb-7 pt-16 md:flex-row md:items-end md:px-12">
+          <div className="max-w-[720px]">
+            <p className="font-cap text-[13px] font-medium uppercase tracking-[0.22em] text-gold-deep">Your horizon</p>
+            <h1 className="mt-4 font-serif text-[44px] font-medium leading-[1.04] text-fg-primary md:text-[54px]">
+              The years you're investing in.
+            </h1>
+            <p className="mt-3 max-w-[520px] text-[17px] leading-relaxed text-fg-secondary">{horizonSubtitle}</p>
+            {purposeStatement && (
+              <p className="mt-4 max-w-[520px] border-l-2 border-gold pl-4 font-serif text-[17px] italic leading-relaxed text-fg-primary">
+                “{purposeStatement}”
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col items-start md:items-end">
+            <span className="font-cap text-[13px] text-fg-muted">
+              {goals.length === 0 ? "No goals yet" : `Committed across ${goals.length} goal${goals.length === 1 ? "" : "s"}`}
+            </span>
+            <span className="mt-2 font-serif text-[40px] font-medium text-fg-primary md:text-[46px]">
+              {goals.length === 0 ? "—" : fmt(totalCommitted)}
+            </span>
+            {goals.length > 0 && (
+              <span
+                className={cn(
+                  "mt-2.5 flex items-center gap-1.5 rounded-full px-3 py-1.5 font-cap text-[13px] font-medium",
+                  behindCount > 0 ? "bg-negative-soft text-negative" : "bg-positive-soft text-positive",
+                )}
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                {behindCount > 0
+                  ? `${behindCount} goal${behindCount === 1 ? "" : "s"} behind pace`
+                  : summitGoal?.target_date
+                    ? `On pace toward ${dateParts(summitGoal.target_date).year}`
+                    : `${fmt(totalSaved)} saved so far`}
+              </span>
+            )}
+          </div>
+        </section>
 
-                    <div className="space-y-3 pt-2 border-t border-border">
-                      <div className="flex items-center justify-between">
-                        <Label>Milestones (optional)</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setNewMilestones(prev => [...prev, { id: `m-${Date.now()}`, title: '', financialTarget: '', description: '' }])}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add milestone
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Add steps you want to hit (e.g. first $5k saved, 25% of goal). Order is preserved.
-                      </p>
-                      <div className="space-y-3">
-                        {newMilestones.map((milestone, index) => (
-                          <div key={milestone.id} className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-medium text-muted-foreground">Milestone {index + 1}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                onClick={() => setNewMilestones(prev => prev.filter(m => m.id !== milestone.id))}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <Input
-                              value={milestone.title}
-                              onChange={(e) => setNewMilestones(prev => prev.map(m => m.id === milestone.id ? { ...m, title: e.target.value } : m))}
-                              placeholder="e.g. First $5,000 saved"
-                            />
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={milestone.financialTarget}
-                                onChange={(e) => setNewMilestones(prev => prev.map(m => m.id === milestone.id ? { ...m, financialTarget: e.target.value } : m))}
-                                placeholder="Amount ($)"
-                              />
-                              <Input
-                                value={milestone.description}
-                                onChange={(e) => setNewMilestones(prev => prev.map(m => m.id === milestone.id ? { ...m, description: e.target.value } : m))}
-                                placeholder="Short description"
-                              />
+        {/* AI Planner */}
+        <section className="border-y border-border-subtle bg-surface-sunken px-6 py-14 md:px-12">
+          <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+            <div className="max-w-[760px]">
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-gold-deep" />
+                <span className="font-cap text-[13px] font-medium uppercase tracking-[0.22em] text-gold-deep">AI goal setting</span>
+              </span>
+              <h2 className="mt-3 font-serif text-[34px] font-medium leading-tight text-fg-primary md:text-[40px]">
+                Set your next goal with AI.
+              </h2>
+              <p className="mt-3 max-w-[600px] text-base leading-relaxed text-fg-secondary">
+                Describe the future you want and TradLyte turns it into a structured goal — a target, a monthly number, and milestones that drop straight onto your horizon.
+              </p>
+            </div>
+            <span className="flex items-center gap-2 rounded-full border border-border-strong bg-card px-3.5 py-2.5 font-cap text-[13px] font-medium text-fg-secondary">
+              <WandSparkles className="h-3.5 w-3.5 text-gold-deep" /> Powered by TradLyte AI
+            </span>
+          </div>
+
+          <div className="mt-7 max-w-[440px] rounded-2xl bg-surface-inverse p-6">
+            <div className="flex items-center gap-3">
+              <span className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-ink">
+                <Sparkles className="h-4 w-4 text-gold-tertiary" />
+              </span>
+              <div className="leading-tight">
+                <div className="text-sm font-semibold text-white">TradLyte AI</div>
+                <div className="font-cap text-[11px] text-white/50">Goal planner</div>
+              </div>
+            </div>
+            <p className="mt-4 text-[15px] leading-relaxed text-white/85">
+              Tell me what you're saving for and by when. I'll shape it into a goal with milestones, a monthly amount, and a realistic completion date.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAiPlan();
+              }}
+              className="mt-5 flex w-full items-center gap-3 rounded-full border border-white/15 bg-white/10 py-1.5 pl-5 pr-1.5"
+            >
+              <input
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                disabled={aiLoading}
+                placeholder={'Describe a goal — "retire by 55 with $780k"'}
+                className="flex-1 bg-transparent font-cap text-sm text-white outline-none placeholder:text-white/50 disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={aiLoading || !aiInput.trim()}
+                aria-label="Plan goal with AI"
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gold transition-opacity disabled:opacity-50"
+              >
+                {aiLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-fg-primary" />
+                ) : (
+                  <ArrowRight className="h-4 w-4 text-fg-primary" />
+                )}
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="mt-3 font-cap text-xs text-white/50 underline-offset-2 transition-colors hover:text-white/80 hover:underline"
+            >
+              or add one manually
+            </button>
+            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New goal</DialogTitle>
+                  <DialogDescription>Name it, set a target, and pick when you want it funded.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-fg-primary">Title</label>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Retirement freedom" className="w-full rounded-md border border-border-strong bg-card px-3.5 py-2.5 text-sm outline-none" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-fg-primary">Target ($)</label>
+                      <input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" placeholder="780000" className="w-full rounded-md border border-border-strong bg-card px-3.5 py-2.5 text-sm outline-none" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-fg-primary">Target date</label>
+                      <input value={date} onChange={(e) => setDate(e.target.value)} type="date" className="w-full rounded-md border border-border-strong bg-card px-3.5 py-2.5 text-sm outline-none" />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <button onClick={() => setAddOpen(false)} className="rounded-full border border-border-strong px-5 py-2.5 text-sm font-semibold text-fg-primary">Cancel</button>
+                  <button onClick={handleAddGoal} className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Create goal</button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {milestoneChips.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  disabled={aiLoading}
+                  onClick={() => void handleAiPlan(c.prompt)}
+                  className="rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 font-cap text-[13px] text-white/80 transition-colors hover:border-gold/60 hover:bg-white/20 disabled:opacity-50"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Timeline */}
+        <section className="px-6 pt-9 md:px-12">
+          <div className="flex items-center justify-between pb-5">
+            <span className="font-cap text-xs font-medium uppercase tracking-[0.15em] text-fg-muted">
+              {goals.length === 0 ? "No milestones yet" : `${goals.length} milestone${goals.length === 1 ? "" : "s"} · nearest first`}
+            </span>
+            {goals.length > 0 && (
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 font-cap text-xs text-fg-secondary"><span className="h-2 w-2 rounded-full bg-positive" /> On track</span>
+                <span className="flex items-center gap-1.5 font-cap text-xs text-fg-secondary"><span className="h-2 w-2 rounded-full bg-negative" /> Behind pace</span>
+              </div>
+            )}
+          </div>
+          {goals.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border-strong bg-card px-8 py-14 text-center">
+              <p className="font-serif text-2xl text-fg-primary">Your horizon is empty</p>
+              <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-fg-secondary">
+                Create a goal above to see it on your timeline — target amount, progress, and milestones pulled from your account.
+              </p>
+              <button
+                onClick={() => setAddOpen(true)}
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                <Plus className="h-4 w-4" /> Add your first goal
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {goals.map((g, i) => {
+                const { year, month } = dateParts(g.target_date);
+                const summit = g.status === "summit";
+                const description =
+                  g.description ||
+                  g.milestones.find((m) => !m.completed)?.description ||
+                  g.milestones[0]?.description ||
+                  null;
+                return (
+                  <div key={g.id} className="flex gap-0">
+                    <div className="w-[132px] flex-shrink-0 pt-1 text-right md:pr-6">
+                      <div className="font-serif text-3xl font-medium text-fg-primary">{year}</div>
+                      <div className="font-cap text-xs text-fg-muted">{month}</div>
+                    </div>
+                    <div className="flex w-9 flex-shrink-0 flex-col items-center">
+                      <span className={cn("rounded-full border-[3px] border-surface-primary", statusDot[g.status || "on_track"], summit ? "h-[18px] w-[18px]" : "h-3.5 w-3.5")} />
+                      {i < goals.length - 1 && <span className="w-0.5 flex-1 bg-border-strong" />}
+                    </div>
+                    <div className="flex-1 pb-9">
+                      <div className={cn("rounded-2xl border bg-card px-6 py-5.5", summit ? "border-[1.5px] border-gold bg-[#F2ECDF]" : "border-border-subtle")}>
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-serif text-xl font-medium text-fg-primary">{g.title}</h3>
+                          <span className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-1 font-cap text-[11px] font-medium", g.status === "behind" ? "bg-negative-soft text-negative" : "bg-positive-soft text-positive")}>
+                            {g.status === "behind" ? "Behind pace" : g.progress >= 100 ? "Complete" : "On track"}
+                          </span>
+                        </div>
+                        {description && (
+                          <p className="mt-2.5 text-[15px] leading-relaxed text-fg-secondary">{description}</p>
+                        )}
+                        <div className="mt-4 flex items-end justify-between">
+                          <div>
+                            <div className="font-cap text-xs text-fg-muted">{fmt(g.current_amount || 0)} of {fmt(g.target_amount || 0)}</div>
+                            <div className="mt-2 h-2 w-56 overflow-hidden rounded-full bg-surface-sunken">
+                              <div className={cn("h-2 rounded-full", summit ? "bg-ink" : "bg-gold-deep")} style={{ width: `${g.progress}%` }} />
                             </div>
                           </div>
-                        ))}
+                          <span className="font-serif text-2xl font-medium text-fg-primary">{Math.round(g.progress)}%</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <DialogFooter>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setAddDialogOpen(false);
-                        setNewGoalTitle('');
-                        setNewGoalDescription('');
-                        setNewGoalAmount('');
-                        setNewGoalDate('');
-                        setNewMilestones([]);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleAddGoal}
-                      disabled={!newGoalTitle.trim() || !newGoalAmount || parseFloat(newGoalAmount) <= 0}
-                    >
-                      <Target className="h-4 w-4 mr-2" />
-                      Create Goal
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-
-          {goals.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center min-h-[320px]">
-              <Card className="shadow-elegant max-w-2xl mx-auto w-full">
-                <CardContent className="py-16 text-center">
-                  <Target className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-foreground mb-2">No Goals Yet</h3>
-                  <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                    Start your journey by creating your first financial goal and adding your own milestones.
-                  </p>
-                  <Button 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setAddDialogOpen(true);
-                    }} 
-                    className="shadow-elegant"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Your First Goal
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="max-w-6xl mx-auto space-y-6">
-              {goals.map((goal) => (
-                <Card key={goal.id} className="shadow-elegant">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl font-display mb-2">{goal.title}</CardTitle>
-                        {goal.description && (
-                          <CardDescription className="text-base">{goal.description}</CardDescription>
-                        )}
-                        <div className="flex items-center gap-4 mt-3 text-sm">
-                          <span className="text-muted-foreground">
-                            Target: <span className="font-semibold text-foreground">${goal.target_amount ? parseFloat(goal.target_amount.toString()).toLocaleString() : '0'}</span>
-                          </span>
-                          <span className="text-muted-foreground">
-                            Current: <span className="font-semibold text-foreground">${goal.current_amount ? parseFloat(goal.current_amount.toString()).toLocaleString() : '0'}</span>
-                          </span>
-                          {goal.target_date && (
-                            <span className="text-muted-foreground">
-                              By: <span className="font-semibold text-foreground">{new Date(goal.target_date).toLocaleDateString()}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-4 shrink-0">
-                        <Badge variant="secondary">
-                          {goal.progress.toFixed(0)}%
-                        </Badge>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setGoalToDelete(goal)}
-                          aria-label="Delete goal"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <Progress value={goal.progress} className="h-3" />
-                    
-                    {/* Milestones */}
-                    {goal.milestones.length > 0 && (
-                      <div className="space-y-4">
-                        <h4 className="font-semibold text-sm text-foreground">Milestones</h4>
-                        <div className="space-y-3 pl-4 border-l-2 border-primary/20">
-                          {goal.milestones.map((milestone, index) => (
-                            <div
-                              key={milestone.id}
-                              className={`relative pl-6 pb-4 ${
-                                index === goal.milestones.length - 1 ? 'pb-0' : ''
-                              }`}
-                            >
-                              <div className="absolute left-0 top-1 -translate-x-1/2">
-                                {milestone.completed ? (
-                                  <CheckCircle2 className="h-5 w-5 text-accent" />
-                                ) : (
-                                  <Circle className="h-5 w-5 text-primary" />
-                                )}
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className={`font-medium text-sm ${
-                                    milestone.completed 
-                                      ? 'text-muted-foreground line-through' 
-                                      : 'text-foreground'
-                                  }`}>
-                                    {milestone.title}
-                                  </h4>
-                                  {milestone.financialTarget > 0 && (
-                                    <Badge variant="outline" className="text-xs">
-                                      ${milestone.financialTarget.toLocaleString()}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {milestone.description}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                );
+              })}
             </div>
           )}
-        </div>
+        </section>
+
+        {/* Contributions */}
+        {goals.length > 0 && (
+          <section className="px-6 pb-16 pt-4 md:px-12">
+            <div className="flex flex-col gap-6 rounded-2xl border border-border-subtle bg-card p-7">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-cap text-[13px] uppercase tracking-wide text-fg-muted">Contributions &amp; pace</p>
+                  <h3 className="mt-2 font-serif text-[28px] font-medium text-fg-primary">How you're funding the horizon</h3>
+                </div>
+                <span className="font-cap text-[13px] text-fg-muted">Estimated monthly to stay on pace</span>
+              </div>
+              <div className="flex flex-col gap-5">
+                {contributions.map((c) => (
+                  <div key={c.goalId} className="flex items-center gap-6">
+                    <span className="w-56 flex-shrink-0 text-[15px] font-medium text-fg-primary">{c.goal}</span>
+                    <div className="h-[18px] flex-1 overflow-hidden rounded-full bg-surface-sunken">
+                      <div className="h-[18px] rounded-full bg-gold-deep" style={{ width: `${c.pct}%` }} />
+                    </div>
+                    <span className="w-20 text-right font-serif text-[19px] font-medium text-fg-primary">
+                      {c.amount > 0 ? fmt(c.amount) : "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="h-px w-full bg-border-subtle" />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3.5">
+                  <span className="font-serif text-[22px] font-medium text-fg-primary">
+                    {monthlyTotal > 0 ? `${fmt(monthlyTotal)} / month` : "Set target dates to estimate pace"}
+                  </span>
+                </div>
+                <span className="flex items-center gap-2 text-sm text-fg-secondary">
+                  <span className={cn("h-[7px] w-[7px] rounded-full", behindCount > 0 ? "bg-negative" : "bg-positive")} />
+                  {behindCount > 0
+                    ? "Some goals need more monthly savings to catch up"
+                    : "At this estimated pace, goals with dates can stay on track"}
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
       <Footer />
-
-      <AlertDialog open={!!goalToDelete} onOpenChange={(open) => !open && setGoalToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this goal?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete &quot;{goalToDelete?.title}&quot; and its milestones. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteGoal}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

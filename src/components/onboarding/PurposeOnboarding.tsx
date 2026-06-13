@@ -1,347 +1,246 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { Sparkles, Target, ArrowRight, ArrowLeft, Heart, TrendingUp, Clock, DollarSign, Users } from 'lucide-react';
-import { saveUserPurpose, type UserPurpose } from '@/lib/purposeUtils';
-import { toast } from 'sonner';
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import {
+  mapExperienceLabel,
+  mapRiskLabel,
+  mapTimeHorizonLabel,
+  saveOnboardingToProfile,
+} from "@/lib/purposeUtils";
+import {
+  Users,
+  Palette,
+  HeartHandshake,
+  Landmark,
+  Wallet,
+  Sparkles,
+  GraduationCap,
+  Clock,
+  Gauge,
+  ArrowLeft,
+  ArrowRight,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const PURPOSE_OPTIONS = [
-  { id: 'family', label: 'Financial freedom for family', icon: Heart },
-  { id: 'passion', label: 'Pursue my passion full-time', icon: Sparkles },
-  { id: 'causes', label: 'Support causes I care about', icon: Target },
-  { id: 'generational', label: 'Create generational wealth', icon: Target },
-  { id: 'freedom', label: 'Achieve financial independence', icon: Target },
-  { id: 'other', label: 'Other', icon: Target },
-];
+type Option = { icon: typeof Users; label: string; sub: string };
 
-const INVESTMENT_EXPERIENCE = [
-  { id: 'beginner', label: 'Beginner - Just starting out', description: 'Learning the basics' },
-  { id: 'intermediate', label: 'Intermediate - Some experience', description: 'Made a few investments' },
-  { id: 'advanced', label: 'Advanced - Experienced investor', description: 'Regularly invest and trade' },
-];
+interface Step {
+  key: string;
+  eyebrowQuestion: string;
+  support: string;
+  options?: Option[];
+  textarea?: { placeholder: string };
+}
 
-const TIME_HORIZON = [
-  { id: 'short', label: '1-3 years', icon: Clock },
-  { id: 'medium', label: '3-10 years', icon: TrendingUp },
-  { id: 'long', label: '10+ years', icon: Target },
+const steps: Step[] = [
+  {
+    key: "primaryGoal",
+    eyebrowQuestion: "What matters most to you?",
+    support: "Your answer shapes how TradLyte frames your portfolio. There are no wrong choices — pick the one that feels most true today.",
+    options: [
+      { icon: Users, label: "Family", sub: "Provide and protect the people I love." },
+      { icon: Palette, label: "Passion & craft", sub: "Fund the work that lights me up." },
+      { icon: HeartHandshake, label: "Causes I care about", sub: "Put money behind my values." },
+      { icon: Landmark, label: "Generational wealth", sub: "Build something that outlasts me." },
+      { icon: Wallet, label: "Financial independence", sub: "Make work a choice, not a must." },
+      { icon: Sparkles, label: "Something else", sub: "My reason is uniquely mine." },
+    ],
+  },
+  {
+    key: "experience",
+    eyebrowQuestion: "How would you describe your experience?",
+    support: "This tunes how much context we surface — never how much you can do.",
+    options: [
+      { icon: Sparkles, label: "Just starting", sub: "New to investing and learning." },
+      { icon: Gauge, label: "Some experience", sub: "I've made a handful of trades." },
+      { icon: GraduationCap, label: "Confident", sub: "I trade with a clear process." },
+      { icon: Landmark, label: "Seasoned", sub: "Markets are second nature." },
+    ],
+  },
+  {
+    key: "timeHorizon",
+    eyebrowQuestion: "What's your time horizon?",
+    support: "How patiently your money can work changes what we surface.",
+    options: [
+      { icon: Clock, label: "A few years", sub: "Goals within reach soon." },
+      { icon: Clock, label: "5–10 years", sub: "Steady, medium-term building." },
+      { icon: Clock, label: "A decade or more", sub: "Long, compounding patience." },
+      { icon: Clock, label: "Mixed", sub: "Different goals, different clocks." },
+    ],
+  },
+  {
+    key: "riskTolerance",
+    eyebrowQuestion: "How do you feel about risk?",
+    support: "We'll keep your guardrails honest to this — you can change it anytime.",
+    options: [
+      { icon: Gauge, label: "Cautious", sub: "Protect first, grow gently." },
+      { icon: Gauge, label: "Balanced", sub: "Some swings for more growth." },
+      { icon: Gauge, label: "Bold", sub: "Comfortable with volatility." },
+      { icon: Gauge, label: "Not sure yet", sub: "Help me find my line." },
+    ],
+  },
+  {
+    key: "firstGoal",
+    eyebrowQuestion: "Name your first goal",
+    support: "One concrete thing you're investing toward. We'll help you shape the rest.",
+    textarea: { placeholder: "e.g. A home down payment by 2028" },
+  },
+  {
+    key: "purposeStatement",
+    eyebrowQuestion: "Put your why into words",
+    support: "A sentence you'll see when markets get loud. It keeps every decision anchored.",
+    textarea: { placeholder: "I invest so that…" },
+  },
 ];
 
 const PurposeOnboarding = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [selectedGoal, setSelectedGoal] = useState<string>('');
-  const [customGoal, setCustomGoal] = useState('');
-  const [purposeStatement, setPurposeStatement] = useState('');
-  const [investmentExperience, setInvestmentExperience] = useState<string>('');
-  const [timeHorizon, setTimeHorizon] = useState<string>('');
-  const [riskTolerance, setRiskTolerance] = useState<string>('');
-  const [firstGoalTitle, setFirstGoalTitle] = useState('');
-  const [firstGoalAmount, setFirstGoalAmount] = useState('');
+  const { user, loading: authLoading } = useAuth();
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
-  const handleGoalSelect = (goalId: string) => {
-    setSelectedGoal(goalId);
-    if (goalId !== 'other') {
-      setCustomGoal('');
-    }
-  };
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/auth");
+  }, [authLoading, user, navigate]);
 
-  const handleNext = () => {
-    if (step === 1) {
-      if (!selectedGoal || (selectedGoal === 'other' && !customGoal.trim())) {
-        toast.error('Please select or enter what matters most to you');
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      if (!purposeStatement.trim()) {
-        toast.error('Please share how wealth serves your purpose');
-        return;
-      }
-      setStep(3);
-    } else if (step === 3) {
-      if (!investmentExperience) {
-        toast.error('Please select your investment experience level');
-        return;
-      }
-      setStep(4);
-    } else if (step === 4) {
-      if (!timeHorizon) {
-        toast.error('Please select your time horizon');
-        return;
-      }
-      setStep(5);
-    } else if (step === 5) {
-      if (!riskTolerance) {
-        toast.error('Please select your risk tolerance');
-        return;
-      }
-      setStep(6);
-    }
-  };
+  const current = steps[step];
+  const value = answers[current.key] || "";
+  const canContinue = !!value.trim();
 
-  const handleComplete = () => {
-    if (!firstGoalTitle.trim()) {
-      toast.error('Please enter a goal title');
+  const setValue = (v: string) => setAnswers((a) => ({ ...a, [current.key]: v }));
+
+  const finish = useCallback(async () => {
+    if (!user) {
+      toast.error("Sign in to save your purpose");
+      navigate("/auth");
       return;
     }
 
-    const purpose: UserPurpose = {
-      primaryGoal: selectedGoal === 'other' ? customGoal : PURPOSE_OPTIONS.find(o => o.id === selectedGoal)?.label || '',
-      purposeStatement,
-      onboardingComplete: true,
-    };
+    setSaving(true);
+    const result = await saveOnboardingToProfile(user, {
+      primaryGoal: answers.primaryGoal || "",
+      purposeStatement: answers.purposeStatement || answers.firstGoal || "",
+      investmentExperience: mapExperienceLabel(answers.experience ?? ""),
+      timeHorizon: mapTimeHorizonLabel(answers.timeHorizon ?? ""),
+      riskTolerance: mapRiskLabel(answers.riskTolerance ?? ""),
+      firstGoalTitle: answers.firstGoal || null,
+    });
+    setSaving(false);
 
-    saveUserPurpose(purpose);
-    toast.success('Welcome to TradLyte! Let\'s build wealth with purpose.');
-    navigate('/dashboard');
+    if (!result.ok) {
+      toast.error(result.error || "Could not save onboarding");
+      return;
+    }
+
+    navigate("/dashboard");
+  }, [user, answers, navigate]);
+
+  const next = () => {
+    if (step === steps.length - 1) {
+      void finish();
+      return;
+    }
+    setStep((s) => s + 1);
   };
+  const back = () => (step === 0 ? navigate("/") : setStep((s) => s - 1));
 
-  const totalSteps = 6;
-  const progress = (step / totalSteps) * 100;
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-primary text-fg-muted">
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        <Card className="shadow-elegant border-border/50">
-          <CardHeader className="text-center pb-4">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="text-3xl font-display font-bold text-foreground">TradLyte</span>
+    <div className="flex min-h-screen flex-col bg-surface-primary px-6 py-9 md:px-14">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="h-[18px] w-[18px] rounded-full bg-ink" />
+          <span className="font-serif text-[22px] font-semibold text-fg-primary">TradLyte</span>
+        </div>
+        <button
+          onClick={() => void finish()}
+          disabled={saving}
+          className="text-sm text-fg-muted hover:text-fg-primary disabled:opacity-50"
+        >
+          Save &amp; exit
+        </button>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center py-6">
+        <div className="flex w-full max-w-[880px] flex-col items-center gap-7">
+          <div className="flex w-[300px] gap-2">
+            {steps.map((_, i) => (
+              <span key={i} className={cn("h-1 flex-1 rounded-full", i <= step ? "bg-ink" : "bg-border-strong")} />
+            ))}
+          </div>
+
+          <div className="flex flex-col items-center gap-3.5 text-center">
+            <p className="font-cap text-[13px] uppercase tracking-[0.16em] text-gold-deep">
+              Step {step + 1} of {steps.length}
+            </p>
+            <h1 className="font-serif text-[34px] font-medium leading-[1.08] text-fg-primary md:text-[46px]">
+              {current.eyebrowQuestion}
+            </h1>
+            <p className="max-w-[580px] text-[17px] leading-relaxed text-fg-secondary">{current.support}</p>
+          </div>
+
+          {current.options ? (
+            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+              {current.options.map((o) => {
+                const selected = value === o.label;
+                return (
+                  <button
+                    key={o.label}
+                    onClick={() => setValue(o.label)}
+                    className={cn(
+                      "flex items-center gap-4 rounded-2xl border bg-card p-5.5 text-left transition-colors",
+                      selected ? "border-2 border-ink" : "border border-border-subtle hover:border-border-strong",
+                    )}
+                  >
+                    <span className={cn("flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-md", selected ? "bg-ink text-white" : "bg-surface-sunken text-ink")}>
+                      <o.icon className="h-[21px] w-[21px]" />
+                    </span>
+                    <div className="flex-1">
+                      <div className="text-[15px] font-semibold text-fg-primary">{o.label}</div>
+                      <div className="text-[13px] text-fg-muted">{o.sub}</div>
+                    </div>
+                    <span className={cn("flex h-[26px] w-[26px] items-center justify-center rounded-full", selected ? "bg-ink" : "border-[1.5px] border-border-strong bg-card")}>
+                      {selected && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <CardTitle className="text-2xl">Discover Your Purpose</CardTitle>
-            <CardDescription>
-              Let's align your wealth-building journey with what truly matters to you
-            </CardDescription>
-            <div className="mt-4">
-              <Progress value={progress} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">Step {step} of {totalSteps}</p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Step 1: What matters most */}
-            {step === 1 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <Label className="text-base font-semibold">What matters most to you?</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Choose the primary reason you're building wealth
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {PURPOSE_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <button
-                        key={option.id}
-                        onClick={() => handleGoalSelect(option.id)}
-                        className={`p-4 rounded-lg border-2 text-left transition-all ${
-                          selectedGoal === option.id
-                            ? 'border-primary bg-primary/10 scale-105'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Icon className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-sm font-medium text-foreground">{option.label}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedGoal === 'other' && (
-                  <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="custom-goal">Tell us your purpose</Label>
-                    <Input
-                      id="custom-goal"
-                      value={customGoal}
-                      onChange={(e) => setCustomGoal(e.target.value)}
-                      placeholder="What are you building wealth for?"
-                      className="mt-1"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+          ) : (
+            <textarea
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={current.textarea?.placeholder}
+              rows={3}
+              className="w-full max-w-[640px] resize-none rounded-2xl border border-border-strong bg-card px-5 py-4 text-base text-fg-primary outline-none placeholder:text-fg-muted focus:border-ink"
+            />
+          )}
+        </div>
+      </div>
 
-            {/* Step 2: How does wealth serve purpose */}
-            {step === 2 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <Label className="text-base font-semibold">How does wealth serve that purpose?</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Reflect on how building wealth connects to what matters most to you
-                  </p>
-                </div>
-                <Textarea
-                  value={purposeStatement}
-                  onChange={(e) => setPurposeStatement(e.target.value)}
-                  placeholder="For example: 'Wealth gives me the freedom to spend more time with my family and support their dreams without financial stress.'"
-                  className="min-h-[120px]"
-                />
-              </div>
-            )}
-
-            {/* Step 3: Investment Experience */}
-            {step === 3 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <Label className="text-base font-semibold">What's your investment experience?</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    This helps us personalize your experience
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  {INVESTMENT_EXPERIENCE.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setInvestmentExperience(option.id)}
-                      className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                        investmentExperience === option.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="font-medium text-foreground">{option.label}</div>
-                      <div className="text-sm text-muted-foreground mt-1">{option.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Time Horizon */}
-            {step === 4 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <Label className="text-base font-semibold">What's your investment time horizon?</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    How long do you plan to invest before needing the money?
-                  </p>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {TIME_HORIZON.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <button
-                        key={option.id}
-                        onClick={() => setTimeHorizon(option.id)}
-                        className={`p-4 rounded-lg border-2 text-center transition-all ${
-                          timeHorizon === option.id
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <Icon className="h-6 w-6 text-primary mx-auto mb-2" />
-                        <div className="text-sm font-medium text-foreground">{option.label}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Step 5: Risk Tolerance */}
-            {step === 5 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <Label className="text-base font-semibold">What's your risk tolerance?</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    How comfortable are you with potential losses for higher returns?
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  {[
-                    { id: 'conservative', label: 'Conservative', description: 'Prefer stability, lower returns' },
-                    { id: 'moderate', label: 'Moderate', description: 'Balance of risk and return' },
-                    { id: 'aggressive', label: 'Aggressive', description: 'Comfortable with higher risk for higher returns' },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setRiskTolerance(option.id)}
-                      className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                        riskTolerance === option.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="font-medium text-foreground">{option.label}</div>
-                      <div className="text-sm text-muted-foreground mt-1">{option.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Step 6: First Goal */}
-            {step === 6 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <Label className="text-base font-semibold">Let's set your first goal</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Create a financial goal that aligns with your purpose
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="goal-title">Goal Title</Label>
-                  <Input
-                    id="goal-title"
-                    value={firstGoalTitle}
-                    onChange={(e) => setFirstGoalTitle(e.target.value)}
-                    placeholder="e.g., Emergency Fund, Dream Home, Retirement"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="goal-amount">Target Amount (optional)</Label>
-                  <Input
-                    id="goal-amount"
-                    type="number"
-                    value={firstGoalAmount}
-                    onChange={(e) => setFirstGoalAmount(e.target.value)}
-                    placeholder="e.g., 10000"
-                  />
-                </div>
-                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                  <p className="text-sm text-muted-foreground">
-                    <strong className="text-foreground">Your Purpose:</strong> {selectedGoal === 'other' ? customGoal : PURPOSE_OPTIONS.find(o => o.id === selectedGoal)?.label}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-4">
-              {step > 1 ? (
-                <Button
-                  variant="outline"
-                  onClick={() => setStep(step - 1)}
-                  className="gap-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Button>
-              ) : (
-                <div />
-              )}
-              {step < totalSteps ? (
-                <Button onClick={handleNext} className="gap-2">
-                  Next
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button onClick={handleComplete} className="gap-2">
-                  Complete Setup
-                  <Sparkles className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <button onClick={back} className="flex items-center gap-2 text-[15px] font-medium text-fg-secondary hover:text-fg-primary">
+          <ArrowLeft className="h-[18px] w-[18px]" /> Back
+        </button>
+        <button
+          onClick={next}
+          disabled={!canContinue || saving}
+          className="flex items-center gap-2 rounded-full bg-ink px-8 py-3.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+          {saving ? "Saving…" : step === steps.length - 1 ? "Finish" : "Continue"}{" "}
+          <ArrowRight className="h-[17px] w-[17px]" />
+        </button>
       </div>
     </div>
   );

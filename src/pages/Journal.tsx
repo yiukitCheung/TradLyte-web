@@ -1,373 +1,461 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import WisdomQuote from '@/components/WisdomQuote';
-import JournalPurposePrompt from '@/components/JournalPurposePrompt';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, TrendingUp, TrendingDown, Lightbulb, Award, Trophy, Star, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import mascotImage from '@/assets/tradlyte-mascot.png';
-import { useToast } from '@/hooks/use-toast';
-import { format, subDays, subMonths, subYears } from 'date-fns';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { format, isSameDay, parseISO } from "date-fns";
+import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
+import { consecutiveJournalDays } from "@/lib/journalStreak";
+import {
+  LOG_ROW_LABELS,
+  buildDebriefQuestions,
+  findTodayEntry,
+  formatLogContent,
+  mapPortfolioToDecisions,
+  parseLogContent,
+  type JournalEntryView,
+} from "@/lib/journalUtils";
+import {
+  nextLevelThresholdPoints,
+  POINTS_PER_JOURNAL_ENTRY,
+  rewardLevelFromPoints,
+  rewardLevelLabel,
+} from "@/lib/rewards";
+import { fetchProfilePurpose, purposeReflectionQuestion } from "@/lib/purposeUtils";
+import { toast } from "sonner";
+import { Flame, TrendingUp, TrendingDown, Check, ArrowRight, Feather, Loader2, Compass } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const logRows = [
+  { label: LOG_ROW_LABELS[0], placeholder: "What did you plan before the open?" },
+  { label: LOG_ROW_LABELS[1], placeholder: "One thing the market taught you." },
+  { label: LOG_ROW_LABELS[2], placeholder: "A moment of discipline worth noting." },
+];
+
+type PortfolioRow = {
+  asset_name: string;
+  purchase_price: number | null;
+  current_price: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
 
 const Journal = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useRequireOnboarding();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [journalText, setJournalText] = useState('');
-  const [selectedPrompt, setSelectedPrompt] = useState('');
-  const [selectedStock, setSelectedStock] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{ role: 'ai' | 'user'; text: string }>>([
-    { role: 'ai', text: "Hi! I'm Tradlyte, your journaling companion. Let's reflect on your trading journey today! Pick a prompt or stock to get started." }
-  ]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [entries, setEntries] = useState<JournalEntryView[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [log, setLog] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [purposeStatement, setPurposeStatement] = useState<string | null>(null);
+  const [primaryGoal, setPrimaryGoal] = useState<string | null>(null);
 
-  // Placeholder data
-  const journalPrompts = [
-    { id: 'win', label: 'Today\'s Win', icon: TrendingUp, color: 'text-green-500' },
-    { id: 'loss', label: 'Today\'s Loss', icon: TrendingDown, color: 'text-red-500' },
-    { id: 'reflection', label: 'Reflection', icon: Lightbulb, color: 'text-yellow-500' },
-    { id: 'lesson', label: 'Lesson Learned', icon: BookOpen, color: 'text-blue-500' },
-  ];
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/auth");
+  }, [user, authLoading, navigate]);
 
-  const stocks = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'NVDA'];
-
-  const milestones = [
-    { date: '2024-10-15', title: 'First Profitable Trade', points: 100 },
-    { date: '2024-11-01', title: '10 Journals Completed', points: 50 },
-    { date: '2024-12-10', title: 'Consistent Journaling Streak', points: 200 },
-  ];
-
-  const journalEntries = [
-    { date: '2025-01-15', stock: 'AAPL', type: 'win', excerpt: 'Great entry on dip...' },
-    { date: '2025-01-10', stock: 'TSLA', type: 'reflection', excerpt: 'Need to work on patience...' },
-    { date: '2025-01-05', stock: 'GOOGL', type: 'loss', excerpt: 'Exit too early, missed gains...' },
-  ];
-
-  const totalPoints = milestones.reduce((sum, m) => sum + m.points, 0);
-  const nextRewardAt = 500;
-
-  const handlePromptSelect = (promptId: string) => {
-    setSelectedPrompt(promptId);
-    const prompt = journalPrompts.find(p => p.id === promptId);
-    setChatMessages(prev => [...prev, 
-      { role: 'user', text: `I want to write about: ${prompt?.label}` },
-      { role: 'ai', text: `Great choice! ${prompt?.label} is important for growth. What happened today?` }
-    ]);
-  };
-
-  const handlePurposePromptSelect = (promptText: string) => {
-    setChatMessages(prev => [...prev,
-      { role: 'user', text: promptText },
-      { role: 'ai', text: 'That\'s a thoughtful question. Take your time to reflect deeply on this.' }
-    ]);
-    setJournalText(promptText + '\n\n');
-  };
-
-  const handleStockSelect = (stock: string) => {
-    setSelectedStock(stock);
-    setChatMessages(prev => [...prev,
-      { role: 'user', text: `I want to journal about ${stock}` },
-      { role: 'ai', text: `Perfect! How did your ${stock} position perform today? What decisions did you make?` }
-    ]);
-  };
-
-  const handleSaveJournal = () => {
-    if (!journalText.trim()) {
-      toast({
-        title: "Journal is empty",
-        description: "Please write something before saving.",
-        variant: "destructive"
-      });
+  const fetchJournalData = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
       return;
     }
+    setLoading(true);
+    try {
+      const [entriesResult, portfolioResult, profile] = await Promise.all([
+        supabase
+          .from("journal_entries")
+          .select("id, title, content, mood, tags, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(60),
+        supabase
+          .from("user_portfolio")
+          .select("asset_name, purchase_price, current_price, created_at, updated_at")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false }),
+        fetchProfilePurpose(user.id),
+      ]);
 
-    // TODO: Save to database
-    toast({
-      title: "Journal saved!",
-      description: "+25 points earned for journaling today!",
-    });
-    setJournalText('');
-    setSelectedPrompt('');
-    setSelectedStock('');
-  };
+      if (entriesResult.error) throw entriesResult.error;
 
-  const timeTravel = (period: 'day' | 'week' | 'month' | 'year') => {
-    let newDate = new Date();
-    switch(period) {
-      case 'day': newDate = subDays(selectedDate, 1); break;
-      case 'week': newDate = subDays(selectedDate, 7); break;
-      case 'month': newDate = subMonths(selectedDate, 1); break;
-      case 'year': newDate = subYears(selectedDate, 1); break;
+      const loaded = (entriesResult.data ?? []) as JournalEntryView[];
+      setEntries(loaded);
+      setPortfolio((portfolioResult.data ?? []) as PortfolioRow[]);
+      setPurposeStatement(profile?.purpose_statement?.trim() || null);
+      setPrimaryGoal(profile?.primary_goal?.trim() || null);
+
+      const todayEntry = findTodayEntry(loaded);
+      if (todayEntry) {
+        const parsed = parseLogContent(todayEntry.content);
+        setLog({
+          [LOG_ROW_LABELS[0]]: parsed[LOG_ROW_LABELS[0]],
+          [LOG_ROW_LABELS[1]]: parsed[LOG_ROW_LABELS[1]],
+          [LOG_ROW_LABELS[2]]: parsed[LOG_ROW_LABELS[2]],
+        });
+      } else {
+        setLog({});
+      }
+
+      if (portfolioResult.error) {
+        console.warn("Portfolio load for journal failed:", portfolioResult.error.message);
+      }
+    } catch (e) {
+      console.error("Failed to load journal:", e);
+      toast.error("Could not load your journal. Please refresh.");
+      setEntries([]);
+      setPortfolio([]);
+      setLog({});
+    } finally {
+      setLoading(false);
     }
-    setSelectedDate(newDate);
-    toast({
-      title: "Time traveled!",
-      description: `Viewing journals from ${format(newDate, 'MMMM d, yyyy')}`,
-    });
+  }, [user]);
+
+  useEffect(() => {
+    fetchJournalData();
+  }, [fetchJournalData]);
+
+  // Arriving from a "regret" on the dashboard — seed a reflection prompt for that symbol.
+  useEffect(() => {
+    if (loading) return;
+    if (searchParams.get("reflect") !== "regret") return;
+    const symbol = searchParams.get("symbol")?.toUpperCase();
+    if (symbol) {
+      setLog((l) =>
+        l[LOG_ROW_LABELS[1]]?.trim()
+          ? l
+          : { ...l, [LOG_ROW_LABELS[1]]: `Reflecting on ${symbol} — what would I do differently next time?` },
+      );
+      toast.message(`Take a moment to reflect on ${symbol}.`);
+    }
+    setSearchParams({}, { replace: true });
+  }, [loading, searchParams, setSearchParams]);
+
+  const todayEntries = useMemo(
+    () => entries.filter((e) => e.created_at && isSameDay(parseISO(e.created_at), new Date())),
+    [entries],
+  );
+
+  const decisions = useMemo(
+    () => mapPortfolioToDecisions(portfolio, todayEntries),
+    [portfolio, todayEntries],
+  );
+
+  const debriefQuestions = useMemo(() => buildDebriefQuestions(decisions), [decisions]);
+
+  const streakDays = useMemo(
+    () => consecutiveJournalDays(entries.map((e) => e.created_at)),
+    [entries],
+  );
+
+  const rewardPoints = entries.length * POINTS_PER_JOURNAL_ENTRY;
+  const rewardLevel = rewardLevelFromPoints(rewardPoints);
+  const nextTierAt = nextLevelThresholdPoints(rewardPoints);
+  const progressToNext =
+    nextTierAt != null ? Math.min(100, (rewardPoints / nextTierAt) * 100) : 100;
+
+  const pendingCount = decisions.filter((d) => !d.reflected).length;
+  const answeredDebrief = debriefQuestions.filter((q) => !q.pending).length;
+
+  const handleSave = async () => {
+    if (!user) return;
+    if (logRows.every((r) => !log[r.label]?.trim())) {
+      return toast.error("Write at least one reflection before saving.");
+    }
+
+    const content = formatLogContent(log);
+    const todayEntry = findTodayEntry(entries);
+    setSaving(true);
+
+    try {
+      if (todayEntry) {
+        const { error } = await supabase
+          .from("journal_entries")
+          .update({
+            content,
+            title: `Reflection · ${new Date().toLocaleDateString()}`,
+            mood: "Reflective",
+          })
+          .eq("id", todayEntry.id)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("journal_entries").insert({
+          user_id: user.id,
+          title: `Reflection · ${new Date().toLocaleDateString()}`,
+          content,
+          mood: "Reflective",
+        });
+        if (error) throw error;
+      }
+
+      toast.success(`Reflection saved · +${POINTS_PER_JOURNAL_ENTRY} points`);
+      await fetchJournalData();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to save reflection";
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (!user) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please sign in to access your journal</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate('/auth')} className="w-full">
-              Sign In
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-screen flex-col bg-surface-primary">
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading your journal…
+          </span>
+        </main>
+        <Footer />
       </div>
     );
   }
 
+  if (!user) return null;
+
+  const firstName =
+    (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] || "there";
+
+  const now = new Date();
+  const dateStr = format(now, "EEEE, MMMM d").toUpperCase();
+  const timeStr = format(now, "h:mm a");
+  const hour = now.getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-surface-primary">
       <Header />
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-          
-          {/* Wisdom Quote */}
-          <WisdomQuote />
-
-          {/* Header with Rewards */}
+      <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-7 px-6 py-9 md:px-10">
+        {/* Hero level zone */}
+        <section className="overflow-hidden rounded-2xl bg-ink p-8 md:px-10">
           <div className="flex items-center justify-between">
+            <span className="font-cap text-[13px] font-medium uppercase tracking-[0.12em] text-[#9BA5BF]">
+              {dateStr} · {timeStr}
+            </span>
+            <span className="flex items-center gap-1.5 rounded-full bg-[#2E4170] px-3.5 py-1.5 font-cap text-[13px] font-semibold text-gold">
+              <Flame className="h-4 w-4" />
+              {streakDays > 0 ? `${streakDays}-day streak` : "Start your streak"}
+            </span>
+          </div>
+          <div className="mt-6 flex flex-col items-start justify-between gap-12 md:flex-row md:items-end">
+            <div className="flex-1">
+              <h1 className="font-serif text-[34px] font-medium text-white">
+                {greeting}, {firstName}
+              </h1>
+              <div className="mt-4 flex items-center gap-3">
+                <span className="font-cap text-sm text-gold-tertiary">
+                  Level {rewardLevel} · {rewardLevelLabel(rewardLevel)}
+                </span>
+                <span className="font-cap text-xs text-white/50">
+                  {rewardPoints} / {nextTierAt ?? rewardPoints} pts
+                </span>
+              </div>
+              <div className="mt-3 h-2 w-full max-w-[420px] overflow-hidden rounded-full bg-white/15">
+                <div className="h-2 rounded-full bg-gold" style={{ width: `${progressToNext}%` }} />
+              </div>
+            </div>
+            <div className="flex w-full max-w-[360px] flex-col gap-3.5 rounded-2xl bg-[#2E4170] p-6">
+              <span className="font-cap text-[11px] uppercase tracking-wide text-gold-tertiary">Tonight's prompt</span>
+              <p className="font-serif text-xl font-medium leading-snug text-white">
+                {pendingCount > 0
+                  ? `${pendingCount} trade${pendingCount === 1 ? "" : "s"} still waiting for your why.`
+                  : decisions.length > 0
+                    ? "Your trades are journaled — capture how you felt about today."
+                    : entries.length === 0
+                      ? "Start with a short reflection on why you invest."
+                      : "Write a few lines about today's discipline or lesson."}
+              </p>
+              <a href="#debrief" className="flex items-center justify-center gap-2 rounded-full bg-gold py-3 text-sm font-semibold text-fg-primary">
+                {pendingCount > 0 ? "Start tonight's debrief" : "Open today's log"}{" "}
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <span className="font-cap text-xs text-[#9BA5BF]">
+                {entries.length} saved entr{entries.length === 1 ? "y" : "ies"} · +{POINTS_PER_JOURNAL_ENTRY} pts per save
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Why you trade — anchor reflection to purpose */}
+        <section className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-card p-6 md:flex-row md:items-center md:justify-between md:gap-8 md:p-7">
+          <div className="flex items-start gap-4">
+            <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gold/15">
+              <Compass className="h-5 w-5 text-gold-deep" />
+            </span>
             <div>
-              <h1 className="text-3xl font-display font-bold text-foreground">Trading Journal</h1>
-              <p className="text-muted-foreground">Reflect, learn, and grow with Tradlyte</p>
+              <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-gold-deep">Why you trade</p>
+              {purposeStatement ? (
+                <p className="mt-1.5 font-serif text-xl italic leading-snug text-fg-primary">“{purposeStatement}”</p>
+              ) : (
+                <p className="mt-1.5 text-[15px] leading-relaxed text-fg-secondary">
+                  You haven't named your purpose yet — it's the anchor every reflection comes back to.{" "}
+                  <button onClick={() => navigate("/onboarding")} className="font-medium text-ink underline-offset-2 hover:underline">
+                    Set your purpose
+                  </button>
+                </p>
+              )}
+              <p className="mt-2 text-[14px] leading-relaxed text-fg-secondary">{purposeReflectionQuestion(primaryGoal)}</p>
             </div>
-            <Card className="shadow-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <Trophy className="h-8 w-8 text-yellow-500" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                      <span className="text-xl font-bold">{totalPoints} Points</span>
-                    </div>
-                    <Progress value={(totalPoints / nextRewardAt) * 100} className="w-40 mt-2" />
-                    <p className="text-xs text-muted-foreground mt-1">{nextRewardAt - totalPoints} to next reward</p>
+          </div>
+          <button
+            onClick={() => navigate("/goals")}
+            className="flex flex-shrink-0 items-center gap-1.5 self-start rounded-full border border-border-strong px-4 py-2.5 font-cap text-[13px] font-medium text-fg-primary transition-colors hover:border-ink md:self-center"
+          >
+            Review goals <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </section>
+
+        {/* Decisions */}
+        <section className="flex flex-col gap-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="font-serif text-[22px] font-semibold text-fg-primary">Today's Decisions</h2>
+              {pendingCount > 0 && (
+                <span className="rounded-full bg-negative-soft px-3 py-1.5 font-cap text-xs font-medium text-negative">
+                  {pendingCount} pending
+                </span>
+              )}
+            </div>
+            <span className="font-cap text-[13px] text-fg-muted">From portfolio activity today</span>
+          </div>
+          {decisions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border-strong bg-card px-8 py-10 text-center">
+              <p className="font-serif text-xl text-fg-primary">No portfolio moves today</p>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-fg-secondary">
+                When you add or update holdings, they show up here for reflection. You can still save today's log below.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {decisions.map((d) => (
+                <div
+                  key={d.symbol}
+                  className={cn(
+                    "flex flex-col gap-3.5 rounded-md bg-card p-5",
+                    d.reflected ? "border border-border-subtle" : "border-[1.5px] border-gold",
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-serif text-lg font-semibold text-fg-primary">{d.symbol}</span>
+                    <span className={cn("flex items-center gap-1 font-cap text-[13px] font-semibold", d.up ? "text-positive" : "text-negative")}>
+                      {d.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                      {d.change}
+                    </span>
                   </div>
+                  <div className="flex items-center justify-between font-cap text-xs text-fg-muted">
+                    <span>{d.side} · {d.name}</span>
+                  </div>
+                  {d.reflected ? (
+                    <span className="flex items-center justify-center gap-2 py-2.5 font-cap text-[13px] font-medium text-positive">
+                      <Check className="h-4 w-4" /> Reflected
+                    </span>
+                  ) : (
+                    <a href="#debrief" className="flex items-center justify-center rounded-md bg-ink py-2.5 text-sm font-semibold text-white">
+                      Journal this
+                    </a>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* AI Assistant & Writing Area */}
-            <div className="lg:col-span-2 space-y-6">
-              
-              {/* AI Chat */}
-              <Card className="shadow-card">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <img src={mascotImage} alt="Tradlyte" className="w-12 h-12 rounded-full" />
-                    <div>
-                      <CardTitle>Tradlyte Assistant</CardTitle>
-                      <CardDescription>Your friendly journaling guide</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-48 overflow-y-auto mb-4">
-                    {chatMessages.map((msg, idx) => (
-                      <div key={idx} className={`flex items-start gap-3 ${msg.role === 'ai' ? '' : 'flex-row-reverse'}`}>
-                        {msg.role === 'ai' && (
-                          <img src={mascotImage} alt="AI" className="w-8 h-8 rounded-full flex-shrink-0" />
-                        )}
-                        <div className={`rounded-lg p-3 max-w-[80%] ${
-                          msg.role === 'ai' 
-                            ? 'bg-accent/20 text-foreground' 
-                            : 'bg-primary text-primary-foreground'
-                        }`}>
-                          <p className="text-sm">{msg.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium mb-2">Choose a prompt:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {journalPrompts.map(prompt => (
-                          <Button
-                            key={prompt.id}
-                            variant={selectedPrompt === prompt.id ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handlePromptSelect(prompt.id)}
-                          >
-                            <prompt.icon className={`h-4 w-4 mr-2 ${prompt.color}`} />
-                            {prompt.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium mb-2">Select a stock:</p>
-                      <Select value={selectedStock} onValueChange={handleStockSelect}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose a stock to journal about" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {stocks.map(stock => (
-                            <SelectItem key={stock} value={stock}>{stock}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Journal Writing Area */}
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle>Write Your Journal</CardTitle>
-                  <CardDescription>
-                    {selectedPrompt && `Topic: ${journalPrompts.find(p => p.id === selectedPrompt)?.label}`}
-                    {selectedStock && ` | Stock: ${selectedStock}`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Start writing your thoughts, observations, and learnings here..."
-                    value={journalText}
-                    onChange={(e) => setJournalText(e.target.value)}
-                    className="min-h-[200px]"
-                  />
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-muted-foreground">
-                      {journalText.length} characters
-                    </p>
-                    <Button onClick={handleSaveJournal}>
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      Save Journal Entry
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              ))}
             </div>
+          )}
+        </section>
 
-            {/* Timeline & Milestones Sidebar */}
-            <div className="space-y-6">
-              
-              {/* Purpose Prompts */}
-              <JournalPurposePrompt onSelectPrompt={handlePurposePromptSelect} />
-
-              {/* Time Travel */}
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">Time Travel</CardTitle>
-                  <CardDescription>Navigate your journal history</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <Button variant="outline" size="icon" onClick={() => timeTravel('day')}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-[200px]">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(selectedDate, 'MMM d, yyyy')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => date && setSelectedDate(date)}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Button variant="outline" size="icon" onClick={() => setSelectedDate(new Date())}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => timeTravel('week')}>
-                      1 Week Ago
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => timeTravel('month')}>
-                      1 Month Ago
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => timeTravel('year')}>
-                      1 Year Ago
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => setSelectedDate(new Date())}>
-                      Today
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Milestones */}
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Award className="h-5 w-5 text-yellow-500" />
-                    Milestones
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {milestones.map((milestone, idx) => (
-                      <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-accent/20 border border-border">
-                        <Trophy className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{milestone.title}</p>
-                          <p className="text-xs text-muted-foreground">{milestone.date}</p>
-                          <Badge variant="secondary" className="mt-1">+{milestone.points} pts</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Recent Entries */}
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">Recent Entries</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {journalEntries.map((entry, idx) => (
-                      <button
-                        key={idx}
-                        className="w-full text-left p-3 rounded-lg bg-background hover:bg-accent/20 border border-border transition-colors"
-                        onClick={() => setSelectedDate(new Date(entry.date))}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-muted-foreground">{entry.date}</span>
-                          <Badge variant="outline" className="text-xs">{entry.stock}</Badge>
-                        </div>
-                        <p className="text-sm truncate">{entry.excerpt}</p>
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+        {/* Debrief */}
+        <section id="debrief" className="flex flex-col gap-4.5">
+          <div className="flex items-end justify-between">
+            <div>
+              <h2 className="font-serif text-[22px] font-semibold text-fg-primary">Tonight's debrief</h2>
+              <p className="font-cap text-[13px] text-fg-muted">
+                {debriefQuestions.length > 0
+                  ? "Reflective prompts from today's activity"
+                  : "General prompts — write your answers in today's log"}
+              </p>
             </div>
+            {debriefQuestions.length > 0 && (
+              <span className="rounded-full bg-surface-sunken px-3.5 py-2 font-cap text-[13px] text-fg-secondary">
+                {answeredDebrief} of {debriefQuestions.length} answered
+              </span>
+            )}
           </div>
-        </div>
+          {debriefQuestions.length === 0 ? (
+            <div className="flex flex-col gap-4">
+              {[
+                "What did you plan before the open — and what actually happened?",
+                "One lesson the market taught you today.",
+                "A small win in discipline worth noting.",
+              ].map((q) => (
+                <div
+                  key={q}
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-border-subtle bg-surface-sunken p-6"
+                >
+                  <p className="font-serif text-lg font-medium text-fg-primary">{q}</p>
+                  <span className="flex-shrink-0 rounded-full bg-gold/20 px-3 py-1.5 font-cap text-xs font-medium text-gold-deep">
+                    {todayEntries.length > 0 ? "Logged" : "Pending"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {debriefQuestions.map((q) => (
+                <div
+                  key={q.symbol}
+                  className={cn(
+                    "flex items-center justify-between gap-4 rounded-2xl bg-surface-sunken p-6",
+                    q.pending ? "border-[1.5px] border-gold" : "border border-border-subtle",
+                  )}
+                >
+                  <div>
+                    <span className="font-cap text-[11px] font-semibold uppercase tracking-wide text-gold-deep">{q.symbol}</span>
+                    <p className="mt-1.5 font-serif text-lg font-medium text-fg-primary">{q.q}</p>
+                  </div>
+                  <span className={cn("flex-shrink-0 rounded-full px-3 py-1.5 font-cap text-xs font-medium", q.pending ? "bg-gold/20 text-gold-deep" : "bg-positive-soft text-positive")}>
+                    {q.pending ? "Pending" : "Answered"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Log & Save */}
+        <section className="overflow-hidden rounded-2xl border border-border-subtle bg-card">
+          <div className="flex items-center justify-between px-6 pt-5">
+            <h2 className="font-serif text-[19px] font-medium text-fg-primary">Today's log</h2>
+            <span className="font-cap text-xs text-fg-muted">
+              {todayEntries.length > 0 ? "Synced from your account" : "Free-form"}
+            </span>
+          </div>
+          <div className="flex flex-col gap-3.5 p-6">
+            {logRows.map((r) => (
+              <div key={r.label} className="flex flex-col gap-2 rounded-md border border-border-subtle bg-surface-primary px-5 py-3.5 sm:flex-row sm:items-center sm:gap-4">
+                <span className="w-40 flex-shrink-0 font-cap text-[13px] font-semibold text-fg-secondary">{r.label}</span>
+                <input
+                  value={log[r.label] || ""}
+                  onChange={(e) => setLog((l) => ({ ...l, [r.label]: e.target.value }))}
+                  placeholder={r.placeholder}
+                  className="flex-1 bg-transparent text-sm text-fg-primary outline-none placeholder:text-fg-muted"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-6 py-4">
+            <span className="text-sm text-fg-muted">
+              Saving today's reflection earns you +{POINTS_PER_JOURNAL_ENTRY} points toward your next tier.
+            </span>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2.5 rounded-full bg-ink px-6 py-3.5 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              <Feather className="h-4 w-4" /> {saving ? "Saving…" : todayEntries.length > 0 ? "Update reflection" : "Save reflection"}
+            </button>
+          </div>
+        </section>
       </main>
       <Footer />
     </div>

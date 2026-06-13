@@ -1,446 +1,1310 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import MarketIndex from '@/components/MarketIndex';
-import WisdomQuoteBanner from '@/components/WisdomQuoteBanner';
-import EntryPriceGrowth from '@/components/EntryPriceGrowth';
-import GrowthChart from '@/components/GrowthChart';
-import RegretSystem from '@/components/RegretSystem';
-import CooldownPrompt from '@/components/CooldownPrompt';
-import FocusModeToggle from '@/components/FocusModeToggle';
-import PurposeReminder from '@/components/PurposeReminder';
-import { useFocusMode } from '@/hooks/useFocusMode';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { 
-  TrendingUp, Target, BookOpen, Sparkles, BarChart3, 
-  ArrowUpRight, ArrowDownRight, Zap, Calendar, Trophy, Brain, 
-  Search, Layers, ArrowRight, TrendingDown
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { useCooldown } from "@/hooks/useCooldown";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  Search,
+  ArrowRight,
+  TrendingUp,
+  TrendingDown,
+  PartyPopper,
+  Bell,
+  X,
+  Star,
+  RotateCcw,
+  Layers,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Compass,
+  Quote,
+  Feather,
+  Sparkles,
+  Loader2,
+  Newspaper,
+  ExternalLink,
+  ArrowUpRight,
+  ArrowDownRight,
+  MoreVertical,
+  CircleDollarSign,
+  Frown,
+  Trash2,
 } from "lucide-react";
-import { isOnboardingComplete, getUserPurpose } from '@/lib/purposeUtils';
-import { useCooldown } from '@/hooks/useCooldown';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { addUserRegret, REGRET_REASONS } from "@/lib/regretUtils";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
+import { cn } from "@/lib/utils";
+import {
+  fetchDashboardIndices,
+  fetchDashboardPicks,
+  fetchMarketQuote,
+  fetchOhlcvSeries,
+  fetchMarketNews,
+  type DashboardIndex,
+  type TopPickRow,
+  type PickReturnHorizon,
+  type MarketNewsItem,
+  type PricePoint,
+  type TimePeriod,
+  formatPickReturn,
+  formatScanDateShort,
+  pickReturnHorizonLabel,
+} from "@/lib/marketApi";
+import { ANALYST_SYSTEM_PROMPT, requestAiChat } from "@/lib/aiChat";
+import {
+  buildPortfolioCurve,
+  splitWinnersLosers,
+  type PortfolioCurvePoint,
+} from "@/lib/portfolioUtils";
+import { consecutiveJournalDays } from "@/lib/journalStreak";
+import { averageMood, type JournalEntryView } from "@/lib/journalUtils";
+import { fetchProfilePurpose } from "@/lib/purposeUtils";
+import {
+  POINTS_PER_JOURNAL_ENTRY,
+  rewardLevelFromPoints,
+  rewardLevelLabel,
+  nextLevelThresholdPoints,
+} from "@/lib/rewards";
+import { format, parseISO } from "date-fns";
+
+// Trailing-return window for each pick (via /market/returns — supported horizons only).
+const PICK_HORIZONS: Array<{ id: PickReturnHorizon; label: string }> = [
+  { id: "1d", label: "1D" },
+  { id: "5d", label: "1W" },
+  { id: "21d", label: "1M" },
+];
+
+// Performance-chart ranges, each backed by a real OHLCV window (see mapPeriodToOhlcvParams).
+const CHART_PERIODS: Array<{ id: TimePeriod; label: string }> = [
+  { id: "6M", label: "6M" },
+  { id: "YTD", label: "YTD" },
+  { id: "1Y", label: "1Y" },
+  { id: "5Y", label: "All" },
+];
+
+// How many holdings (highest value first) to pull news for — caps the API fan-out.
+const NEWS_SYMBOL_LIMIT = 5;
+// Only nudge a cooldown when a holding has run up meaningfully.
+const COOLDOWN_GAIN_THRESHOLD = 15;
+
+const popular = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "GOOG"];
+
+type HoldingRow = {
+  id: string;
+  symbol: string;
+  name: string;
+  type: string;
+  entry: number;
+  current: number;
+  qty: number;
+  gain: number;
+  momentum: string;
+  score: number;
+};
+
+// Momentum is purely a function of recent gain vs. entry — labelled honestly, not as buy/sell advice.
+const momentumLabel = (score: number) => (score >= 70 ? "High" : score >= 45 ? "Steady" : "Soft");
+const momentumStyle = (label: string) =>
+  label === "High" ? "text-positive" : label === "Soft" ? "text-negative" : "text-gold-deep";
+const momentumBar = (label: string) =>
+  label === "High" ? "bg-positive" : label === "Soft" ? "bg-negative" : "bg-gold-deep";
+
+function relativeEntryDate(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    const d = parseISO(iso);
+    const diffDays = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+    if (diffDays <= 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return format(d, "MMM d");
+  } catch {
+    return "";
+  }
+}
 
 const UserDashboard = () => {
-  const { user, loading } = useAuth();
+  const { user, loading } = useRequireOnboarding();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [portfolioItems, setPortfolioItems] = useState<any[]>([]);
-  const [goals, setGoals] = useState<any[]>([]);
-  const [journalStats, setJournalStats] = useState({ totalEntries: 0, weekStreak: 0, avgMood: "Neutral" });
-  const { shouldShowPrompt, enableCooldown, recordProfitableTrade, cooldownEnabled } = useCooldown();
-  const { focusMode } = useFocusMode();
+  const [holdings, setHoldings] = useState<HoldingRow[]>([]);
+  const [holdingsLoading, setHoldingsLoading] = useState(true);
+  const [markets, setMarkets] = useState<DashboardIndex[]>([]);
+  const [picks, setPicks] = useState<TopPickRow[]>([]);
+  const [picksLoading, setPicksLoading] = useState(true);
+  const [pickCount, setPickCount] = useState(0);
+  const [pickScanDate, setPickScanDate] = useState<string | null>(null);
+  const [pickHorizon, setPickHorizon] = useState<PickReturnHorizon>("21d");
+  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [sectorOpen, setSectorOpen] = useState(false);
+  const sectorRef = useRef<HTMLDivElement>(null);
+  const { shouldShowPrompt, cooldownEnabled } = useCooldown();
+
+  // Journal reflections + insights (real, from journal_entries).
+  const [entries, setEntries] = useState<JournalEntryView[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(true);
+  // The user's stated purpose (from profiles), to remind them why they trade.
+  const [purposeStatement, setPurposeStatement] = useState<string | null>(null);
+  // Portfolio-relevant headlines for the user's held symbols.
+  const [news, setNews] = useState<Array<MarketNewsItem & { symbol: string }>>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  // Real portfolio value curve over the selected window.
+  const [chartPeriod, setChartPeriod] = useState<TimePeriod>("1Y");
+  const [curve, setCurve] = useState<PortfolioCurvePoint[]>([]);
+  const [curveLoading, setCurveLoading] = useState(false);
+  // Regret flow: a two-step dialog (record reason → invite journaling).
+  const [regretFor, setRegretFor] = useState<HoldingRow | null>(null);
+  const [regretReason, setRegretReason] = useState<string>(REGRET_REASONS[0].value);
+  const [regretNote, setRegretNote] = useState("");
+  const [regretSaving, setRegretSaving] = useState(false);
+  const [regretRecorded, setRegretRecorded] = useState(false);
+
+  const portfolioValue = holdings.reduce((sum, h) => sum + h.current * h.qty, 0);
+  const portfolioCost = holdings.reduce((sum, h) => sum + h.entry * h.qty, 0);
+  const portfolioGainPct = portfolioCost > 0 ? ((portfolioValue - portfolioCost) / portfolioCost) * 100 : 0;
+
+  // What's doing great / what's not — derived from real holdings.
+  const { top: topHolding, bottom: bottomHolding } = splitWinnersLosers(holdings);
+
+  // Journal insights — real points, level, streak, and average mood.
+  const rewardPoints = entries.length * POINTS_PER_JOURNAL_ENTRY;
+  const rewardLevel = rewardLevelFromPoints(rewardPoints);
+  const nextThreshold = nextLevelThresholdPoints(rewardPoints);
+  const ptsToNext = nextThreshold ? nextThreshold - rewardPoints : 0;
+  const levelProgressPct = nextThreshold ? Math.min(100, (rewardPoints / nextThreshold) * 100) : 100;
+  const journalStreak = consecutiveJournalDays(entries.map((e) => e.created_at));
+  const avgMood = averageMood(entries);
+
+  // Most recent reflections for the dashboard's quiet record.
+  const recentReflections = entries.slice(0, 3).map((e) => ({
+    date: relativeEntryDate(e.created_at),
+    text: e.content.replace(/^[A-Za-z' ]+:\s*/gm, "").split("\n").filter((l) => l.trim() && l.trim() !== "—")[0] ?? e.title,
+    tag: e.tags?.[0] ?? e.mood ?? null,
+  }));
+
+  const featuredPick = picks[0] ?? null;
+  const listPicks = picks.slice(1);
+  const [pickAnalysis, setPickAnalysis] = useState<string | null>(null);
+  const [pickAnalysisLoading, setPickAnalysisLoading] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    } else if (!loading && user && !isOnboardingComplete()) {
-      navigate('/onboarding');
-    }
+    if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!user) return;
-      
+    if (!user) return;
+    let cancelled = false;
+    const fetchPortfolio = async () => {
+      setHoldingsLoading(true);
       try {
-        // Fetch portfolio
-        const { data: portfolioData, error: portfolioError } = await supabase
-          .from('user_portfolio')
-          .select('*')
-          .eq('user_id', user.id);
-        
-        if (portfolioError) throw portfolioError;
-        setPortfolioItems(portfolioData || []);
-        
-        // Check for profitable trades to trigger cooldown
-        if (portfolioData && portfolioData.length > 0) {
-          const hasProfit = portfolioData.some(item => 
-            item.purchase_price && 
-            item.current_price && 
-            item.current_price > item.purchase_price
-          );
-          if (hasProfit) {
-            recordProfitableTrade();
-          }
+        const { data } = await supabase.from("user_portfolio").select("*").eq("user_id", user.id);
+        if (!data || !data.length) {
+          if (!cancelled) setHoldings([]);
+          return;
         }
+        const rows = await Promise.all(
+          data.map(async (item) => {
+            const entry = item.purchase_price || 0;
+            const symbol = item.asset_name as string;
+            let current = item.current_price || entry;
+            let displayName = (item.asset_type as string) || symbol;
+            try {
+              const quote = await fetchMarketQuote(symbol);
+              if (quote?.close != null) {
+                current = quote.close;
+                if (quote.name) displayName = quote.name;
+              }
+            } catch {
+              /* keep stored price */
+            }
+            const gain = entry > 0 ? ((current - entry) / entry) * 100 : 0;
+            const score = Math.min(100, Math.max(0, Math.round(50 + gain * 2)));
+            return {
+              id: item.id as string,
+              symbol,
+              name: displayName,
+              type: (item.asset_type as string) || "Equity",
+              entry,
+              current,
+              qty: item.quantity || 0,
+              gain,
+              momentum: momentumLabel(score),
+              score,
+            };
+          }),
+        );
+        if (!cancelled) setHoldings(rows);
+      } finally {
+        if (!cancelled) setHoldingsLoading(false);
+      }
+    };
+    fetchPortfolio();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
-        // Fetch goals
-        const { data: goalsData, error: goalsError } = await supabase
-          .from('user_goals')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchDashboardIndices(controller.signal).then(setMarkets);
+    return () => controller.abort();
+  }, []);
 
-        if (!goalsError && goalsData) {
-          setGoals(goalsData.map(goal => ({
-            ...goal,
-            progress: goal.target_amount && goal.current_amount 
-              ? Math.min(100, (parseFloat(goal.current_amount.toString()) / parseFloat(goal.target_amount.toString())) * 100)
-              : 0
-          })));
-        }
+  // Journal entries (reflections + insights) and the user's stated purpose.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const load = async () => {
+      setEntriesLoading(true);
+      try {
+        const [entriesResult, profile] = await Promise.all([
+          supabase
+            .from("journal_entries")
+            .select("id, title, content, mood, tags, created_at")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(60),
+          fetchProfilePurpose(user.id),
+        ]);
+        if (cancelled) return;
+        setEntries((entriesResult.data ?? []) as JournalEntryView[]);
+        setPurposeStatement(profile?.purpose_statement?.trim() || null);
+      } catch (e) {
+        if (!cancelled) console.error("Journal/purpose load failed:", e);
+      } finally {
+        if (!cancelled) setEntriesLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
-        // Fetch journal stats
-        const { data: journalData, error: journalError } = await supabase
-          .from('journal_entries')
-          .select('*')
-          .eq('user_id', user.id);
+  // Portfolio-relevant news for the highest-value holdings (capped fan-out).
+  useEffect(() => {
+    if (holdings.length === 0) {
+      setNews([]);
+      return;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    const loadNews = async () => {
+      setNewsLoading(true);
+      try {
+        const symbols = [...holdings]
+          .sort((a, b) => b.current * b.qty - a.current * a.qty)
+          .slice(0, NEWS_SYMBOL_LIMIT)
+          .map((h) => h.symbol);
+        const perSymbol = await Promise.all(
+          symbols.map(async (symbol) => {
+            const items = await fetchMarketNews(symbol, controller.signal);
+            return items.slice(0, 4).map((item) => ({ ...item, symbol }));
+          }),
+        );
+        if (cancelled) return;
+        // Newest headlines across all holdings first — "latest update" view.
+        const merged = perSymbol
+          .flat()
+          .sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
+        setNews(merged.slice(0, 6));
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        if (!cancelled) console.error("Portfolio news load failed:", e);
+      } finally {
+        if (!cancelled) setNewsLoading(false);
+      }
+    };
+    loadNews();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [holdings]);
 
-        if (!journalError && journalData) {
-          setJournalStats({
-            totalEntries: journalData.length,
-            weekStreak: Math.floor(journalData.length / 7),
-            avgMood: "Reflective"
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
+  // Real portfolio value curve over the selected window, built from OHLCV history.
+  useEffect(() => {
+    if (holdings.length === 0) {
+      setCurve([]);
+      return;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    const loadCurve = async () => {
+      setCurveLoading(true);
+      try {
+        const series = await Promise.all(
+          holdings.map(async (h) => ({
+            symbol: h.symbol,
+            points: await fetchOhlcvSeries(h.symbol, chartPeriod, controller.signal),
+          })),
+        );
+        if (cancelled) return;
+        const seriesBySymbol: Record<string, PricePoint[]> = {};
+        for (const s of series) seriesBySymbol[s.symbol] = s.points;
+        setCurve(buildPortfolioCurve(seriesBySymbol, holdings));
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        if (!cancelled) console.error("Portfolio curve load failed:", e);
+      } finally {
+        if (!cancelled) setCurveLoading(false);
+      }
+    };
+    loadCurve();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [holdings, chartPeriod]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadPicks = async () => {
+      setPicksLoading(true);
+      try {
+        const result = await fetchDashboardPicks({
+          limit: 10,
+          industry: selectedIndustry,
+          horizon: pickHorizon,
+          signal: controller.signal,
+        });
+        setPicks(result.picks);
+        setPickCount(result.totalCount);
+        setPickScanDate(result.scanDate);
+        if (!selectedIndustry) setIndustries(result.industries);
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        console.error("Picks fetch failed:", e);
+      } finally {
+        setPicksLoading(false);
+      }
+    };
+    loadPicks();
+    return () => controller.abort();
+  }, [pickHorizon, selectedIndustry]);
+
+  useEffect(() => {
+    if (!user || !featuredPick) {
+      setPickAnalysis(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadAnalysis = async () => {
+      setPickAnalysisLoading(true);
+      setPickAnalysis(null);
+      try {
+        const context = [
+          `Symbol: ${featuredPick.symbol}`,
+          featuredPick.name !== featuredPick.symbol ? `Company: ${featuredPick.name}` : null,
+          featuredPick.sector !== "—" ? `Sector: ${featuredPick.sector}` : null,
+          featuredPick.close != null ? `Price: $${featuredPick.close.toFixed(2)}` : null,
+          featuredPick.returnPct != null
+            ? `Return ${pickReturnHorizonLabel(pickHorizon, pickScanDate ?? featuredPick.scanDate)}: ${formatPickReturn(featuredPick.returnPct)}`
+            : null,
+          pickScanDate ? `Scan date: ${pickScanDate}` : null,
+          `Rank: ${featuredPick.rank} of today's Vegas Channel scan`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const text = await requestAiChat({
+          system: ANALYST_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Summarize why this stock might interest a purpose-driven investor as today's featured pick. Context:\n${context}`,
+                },
+              ],
+            },
+          ],
+        });
+        if (!cancelled) setPickAnalysis(text);
+      } catch (e) {
+        console.error("Pick AI analysis failed:", e);
+        if (!cancelled) setPickAnalysis(null);
+      } finally {
+        if (!cancelled) setPickAnalysisLoading(false);
       }
     };
 
-    if (user) {
-      fetchData();
-    }
-  }, [user, recordProfitableTrade]);
+    loadAnalysis();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, featuredPick, pickHorizon, pickScanDate]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const query = searchQuery.trim().toUpperCase();
-    if (query) {
-      navigate(`/stock/${query}`);
-      setSearchQuery("");
-    } else {
-      toast.error('Please enter a stock symbol');
+  useEffect(() => {
+    if (!sectorOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (sectorRef.current && !sectorRef.current.contains(e.target as Node)) {
+        setSectorOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [sectorOpen]);
+
+  const resetPickFilters = () => {
+    setSelectedIndustry(null);
+    setPickHorizon("21d");
+    setSectorOpen(false);
+  };
+
+  // Remove a holding from the active portfolio — used by both "sold" and "remove".
+  const removeHolding = async (h: HoldingRow, mode: "sold" | "remove") => {
+    if (!user) return;
+    const prev = holdings;
+    setHoldings((rows) => rows.filter((r) => r.id !== h.id)); // optimistic
+    const { error } = await supabase
+      .from("user_portfolio")
+      .delete()
+      .eq("id", h.id)
+      .eq("user_id", user.id);
+    if (error) {
+      setHoldings(prev); // rollback
+      toast.error(error.message || "Could not update your portfolio.");
+      return;
+    }
+    toast.success(mode === "sold" ? `Marked ${h.symbol} as sold.` : `Removed ${h.symbol} from your portfolio.`);
+  };
+
+  const openRegret = (h: HoldingRow) => {
+    setRegretFor(h);
+    setRegretReason(REGRET_REASONS[0].value);
+    setRegretNote("");
+    setRegretRecorded(false);
+  };
+
+  const submitRegret = async () => {
+    if (!user || !regretFor) return;
+    const reasonDef = REGRET_REASONS.find((r) => r.value === regretReason) ?? REGRET_REASONS[0];
+    setRegretSaving(true);
+    try {
+      await addUserRegret(user.id, {
+        stockSymbol: regretFor.symbol,
+        reason: reasonDef.label,
+        reasonCode: reasonDef.value,
+        notes: regretNote.trim() || undefined,
+        portfolioId: regretFor.id,
+      });
+      setRegretRecorded(true); // move to the journaling invitation step
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not record this regret.");
+    } finally {
+      setRegretSaving(false);
     }
   };
 
-  const marketIndicators = [
-    { name: "S&P 500", value: "4,567.23", change: "+1.2%", positive: true },
-    { name: "NASDAQ", value: "16,742.39", change: "+1.5%", positive: true },
-    { name: "VIX", value: "14.32", change: "-5.4%", positive: true },
-    { name: "Gold", value: "$2,048.60", change: "+0.4%", positive: true },
-    { name: "Crude Oil", value: "$78.24", change: "-0.8%", positive: false },
-  ];
+  const journalThisRegret = () => {
+    const symbol = regretFor?.symbol;
+    setRegretFor(null);
+    // Carry the regret context so the journal can seed a reflection prompt.
+    navigate(symbol ? `/journal?reflect=regret&symbol=${symbol}` : "/journal");
+  };
+
+  const sectorLabel = selectedIndustry
+    ? selectedIndustry
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ")
+    : "All sectors";
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim().toUpperCase();
+    if (q) {
+      navigate(`/stock/${q}`);
+      setSearchQuery("");
+    } else {
+      toast.error("Please enter a stock symbol");
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="text-2xl font-semibold">Loading...</div>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-surface-primary text-fg-muted">
+        Loading…
       </div>
     );
   }
+  if (!user) return null;
 
-  if (!user) {
-    return null;
-  }
+  const firstName =
+    (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
+    user.email?.split("@")[0] ||
+    "there";
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-surface-primary">
       <Header />
-      <main className="flex-1 py-6">
-        <div className="container mx-auto px-4 max-w-7xl space-y-6">
-          
-          {/* Top Section: Market Indices + Commodities + Search Combined */}
-          <div className="space-y-4">
-            {/* Market Indices & Commodities */}
-            {!focusMode && (
-              <Card className="shadow-card border-border/50">
-                <CardContent className="py-4">
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  {marketIndicators.map((indicator) => (
-                    <div 
-                      key={indicator.name} 
-                        className="text-center p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+      <main className="mx-auto w-full max-w-[1440px] flex-1">
+        {/* Hero */}
+        <section className="px-6 pb-10 pt-14 md:px-12">
+          <p className="font-cap text-sm uppercase tracking-[0.14em] text-gold-deep">
+            Purpose-driven investing
+          </p>
+          <h1 className="mt-3.5 font-serif text-[40px] font-medium leading-[1.05] text-fg-primary md:text-[52px]">
+            Good morning, {firstName}.
+          </h1>
+          <p className="mt-2.5 max-w-[620px] text-[17px] text-fg-secondary">
+            {holdings.length > 0
+              ? `Your portfolio is ${portfolioGainPct >= 0 ? "up" : "down"} ${Math.abs(portfolioGainPct).toFixed(1)}% since entry${pickCount ? `, and ${pickCount} ideas match your filters today` : ""}.`
+              : pickCount
+                ? `${pickCount} new ideas match your purpose today.`
+                : "Search a ticker to analyze, or explore today's picks."}
+          </p>
+          <form
+            onSubmit={handleSearch}
+            className="mt-6 flex w-full max-w-[680px] items-center gap-3 rounded-full border border-border-strong bg-card py-1.5 pl-5 pr-1.5"
+          >
+            <Search className="h-5 w-5 flex-shrink-0 text-fg-muted" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Analyze any stock — type a ticker or company"
+              className="h-10 flex-1 bg-transparent text-base text-fg-primary outline-none placeholder:text-fg-muted"
+            />
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-[15px] font-semibold text-white"
+            >
+              Analyze <ArrowRight className="h-4 w-4" />
+            </button>
+          </form>
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <span className="font-cap text-[13px] text-fg-muted">Popular</span>
+            {popular.map((s) => (
+              <button
+                key={s}
+                onClick={() => navigate(`/stock/${s}`)}
+                className="rounded-full border border-border-subtle bg-card px-3.5 py-1.5 font-cap text-[13px] font-medium text-fg-secondary hover:border-border-strong"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Markets */}
+        <section className="px-6 pb-7 md:px-12">
+          <div className="mb-3.5 flex items-end justify-between">
+            <h2 className="font-serif text-[22px] font-medium text-fg-primary">Markets at a glance</h2>
+            <span className="font-cap text-xs text-fg-muted">Live · delayed 15 min</span>
+          </div>
+          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border-subtle bg-card md:grid-cols-5">
+            {(markets.length ? markets : [
+              { name: "S&P 500", value: "…", change: "…", up: true },
+              { name: "NASDAQ", value: "…", change: "…", up: true },
+              { name: "Dow Jones", value: "…", change: "…", up: true },
+              { name: "Gold", value: "…", change: "…", up: true },
+              { name: "Crude Oil", value: "…", change: "…", up: true },
+            ]).map((m, i) => (
+              <div
+                key={m.name}
+                className={cn("flex flex-col gap-2 px-5 py-5", i > 0 && "md:border-l md:border-border-subtle")}
+              >
+                <span className="font-cap text-[13px] text-fg-muted">{m.name}</span>
+                <span className="text-[22px] font-semibold text-fg-primary">{m.value}</span>
+                <span className={cn("flex items-center gap-1.5 font-cap text-[13px] font-medium", m.up ? "text-positive" : "text-negative")}>
+                  {m.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                  {m.change}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Main band */}
+        <section className="grid grid-cols-1 gap-6 px-6 md:px-12 lg:grid-cols-[1fr_400px]">
+          {/* Left column */}
+          <div className="flex flex-col gap-6">
+            {/* Performance card */}
+            <div className="rounded-2xl border border-border-subtle bg-card p-7">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="font-cap text-[13px] text-fg-muted">Portfolio value</p>
+                  <p className="font-serif text-[42px] font-medium leading-none text-fg-primary">
+                    ${portfolioValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={cn("flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", portfolioGainPct >= 0 ? "bg-positive-soft text-positive" : "bg-negative/10 text-negative")}>
+                      {portfolioGainPct >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                      {portfolioGainPct >= 0 ? "+" : ""}{portfolioGainPct.toFixed(1)}%
+                    </span>
+                    <span className="font-cap text-[13px] text-fg-muted">since your average entry</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 rounded-full bg-surface-sunken p-1">
+                  {CHART_PERIODS.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setChartPeriod(t.id)}
+                      aria-pressed={chartPeriod === t.id}
+                      className={cn(
+                        "rounded-full px-3.5 py-1.5 font-cap text-[13px] transition-colors",
+                        chartPeriod === t.id ? "bg-card font-semibold text-fg-primary shadow-sm" : "text-fg-muted hover:text-fg-secondary",
+                      )}
                     >
-                        <div className="text-xs text-muted-foreground mb-1">{indicator.name}</div>
-                        <div className="font-semibold font-mono text-sm">{indicator.value}</div>
-                      <Badge 
-                        variant="secondary" 
-                          className={`text-xs mt-1 ${indicator.positive ? 'bg-green-500/10 text-green-600 border-0' : 'bg-red-500/10 text-red-500 border-0'}`}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-1 font-cap text-[11px] text-fg-muted">
+                Value of your current holdings at market over time · delayed 15 min
+              </p>
+              <div className="mt-5 h-[240px] w-full">
+                {holdings.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+                    <p className="text-sm font-medium text-fg-secondary">No holdings to chart yet</p>
+                    <p className="font-cap text-xs text-fg-muted">Add holdings to see your portfolio's path over time.</p>
+                  </div>
+                ) : curveLoading && curve.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-fg-muted" />
+                  </div>
+                ) : curve.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <p className="font-cap text-xs text-fg-muted">Price history unavailable for this range.</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={curve} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                      <defs>
+                        <linearGradient id="grow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.34} />
+                          <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" opacity={0.7} />
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        minTickGap={48}
+                        tickFormatter={(d: string) => {
+                          try {
+                            return format(parseISO(d), "MMM");
+                          } catch {
+                            return "";
+                          }
+                        }}
+                        tick={{ fill: "hsl(var(--fg-muted))", fontSize: 11 }}
+                      />
+                      <YAxis hide domain={["dataMin", "dataMax"]} />
+                      <Area type="monotone" dataKey="value" stroke="hsl(var(--accent-deep))" strokeWidth={2.5} fill="url(#grow)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* What's moving — winners / losers at a glance */}
+            {holdings.length > 0 && (topHolding || bottomHolding) && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {topHolding && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/stock/${topHolding.symbol}`)}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-positive/20 bg-positive-soft px-5 py-4 text-left transition-colors hover:border-positive/40"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-positive/15">
+                        <ArrowUpRight className="h-4 w-4 text-positive" />
+                      </span>
+                      <div>
+                        <p className="font-cap text-[11px] uppercase tracking-wide text-fg-muted">Doing great</p>
+                        <p className="text-sm font-semibold text-fg-primary">{topHolding.symbol}</p>
+                      </div>
+                    </div>
+                    <span className={cn("text-base font-semibold", topHolding.gain >= 0 ? "text-positive" : "text-negative")}>
+                      {topHolding.gain >= 0 ? "+" : ""}{topHolding.gain.toFixed(1)}%
+                    </span>
+                  </button>
+                )}
+                {bottomHolding && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/stock/${bottomHolding.symbol}`)}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-negative/20 bg-negative/5 px-5 py-4 text-left transition-colors hover:border-negative/40"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-negative/10">
+                        <ArrowDownRight className="h-4 w-4 text-negative" />
+                      </span>
+                      <div>
+                        <p className="font-cap text-[11px] uppercase tracking-wide text-fg-muted">Needs attention</p>
+                        <p className="text-sm font-semibold text-fg-primary">{bottomHolding.symbol}</p>
+                      </div>
+                    </div>
+                    <span className={cn("text-base font-semibold", bottomHolding.gain >= 0 ? "text-positive" : "text-negative")}>
+                      {bottomHolding.gain >= 0 ? "+" : ""}{bottomHolding.gain.toFixed(1)}%
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Holdings table */}
+            <div className="overflow-hidden rounded-2xl border border-border-subtle bg-card">
+              <div className="flex items-center justify-between px-7 py-5">
+                <div>
+                  <h3 className="font-serif text-[22px] font-medium text-fg-primary">Your portfolio</h3>
+                  <p className="font-cap text-xs text-fg-muted">
+                    {holdings.length} holdings · framed against your entry price
+                  </p>
+                </div>
+                <button className="flex items-center gap-1.5 font-cap text-[13px] font-medium text-ink">
+                  View all <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-[1fr_84px_84px_90px_56px_88px_140px_32px] gap-2 border-y border-border-subtle bg-surface-sunken px-7 py-2.5 font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+                <span>Holding</span><span>Type</span><span>Entry</span><span>Current</span><span>Qty</span><span>Gain</span><span>Momentum</span><span className="sr-only">Actions</span>
+              </div>
+              {holdingsLoading && holdings.length === 0 ? (
+                <p className="px-7 py-8 text-center font-cap text-sm text-fg-muted">Loading your holdings…</p>
+              ) : holdings.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-7 py-10 text-center">
+                  <p className="text-sm font-medium text-fg-secondary">No holdings yet</p>
+                  <p className="font-cap text-xs text-fg-muted">Analyze a stock to start tracking it against your entry price.</p>
+                </div>
+              ) : null}
+              {holdings.map((h) => (
+                <div
+                  key={h.symbol}
+                  className="grid grid-cols-[1fr_84px_84px_90px_56px_88px_140px_32px] items-center gap-2 border-b border-border-subtle px-7 py-4 last:border-b-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-sunken font-serif text-base font-semibold text-gold-deep">
+                      {h.symbol[0]}
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold text-fg-primary">{h.symbol}</div>
+                      <div className="font-cap text-[11px] text-fg-muted">{h.name}</div>
+                    </div>
+                  </div>
+                  <span className="font-cap text-[13px] text-fg-secondary">{h.type}</span>
+                  <span className="text-[13px] text-fg-secondary">${h.entry.toFixed(2)}</span>
+                  <span className="text-[13px] font-medium text-fg-primary">${h.current.toFixed(2)}</span>
+                  <span className="text-[13px] text-fg-secondary">{h.qty}</span>
+                  <span className={cn("text-sm font-semibold", h.gain >= 0 ? "text-positive" : "text-negative")}>
+                    {h.gain >= 0 ? "+" : ""}{h.gain.toFixed(1)}%
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className={cn("font-cap text-xs font-semibold", momentumStyle(h.momentum))}>{h.momentum}</span>
+                      <span className="font-cap text-[11px] text-fg-muted">{h.score}/100</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
+                      <div className={cn("h-1.5 rounded-full", momentumBar(h.momentum))} style={{ width: `${h.score}%` }} />
+                    </div>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      aria-label={`Actions for ${h.symbol}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-surface-sunken hover:text-fg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => removeHolding(h, "sold")}>
+                        <CircleDollarSign className="mr-2 h-4 w-4 text-positive" /> Mark as sold
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openRegret(h)}>
+                        <Frown className="mr-2 h-4 w-4 text-gold-deep" /> I regret this
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => removeHolding(h, "remove")} className="text-negative focus:text-negative">
+                        <Trash2 className="mr-2 h-4 w-4" /> Remove from portfolio
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))}
+            </div>
+
+            {/* Portfolio news */}
+            {holdings.length > 0 && (
+              <div className="overflow-hidden rounded-2xl border border-border-subtle bg-card">
+                <div className="flex items-center justify-between px-7 py-5">
+                  <div>
+                    <h3 className="flex items-center gap-2 font-serif text-[22px] font-medium text-fg-primary">
+                      <Newspaper className="h-5 w-5 text-gold-deep" /> News on your holdings
+                    </h3>
+                    <p className="font-cap text-xs text-fg-muted">Latest headlines for the names you own</p>
+                  </div>
+                </div>
+                {newsLoading && news.length === 0 ? (
+                  <p className="border-t border-border-subtle px-7 py-8 text-center font-cap text-sm text-fg-muted">
+                    Loading headlines…
+                  </p>
+                ) : news.length === 0 ? (
+                  <p className="border-t border-border-subtle px-7 py-8 text-center font-cap text-sm text-fg-muted">
+                    No recent news for your holdings.
+                  </p>
+                ) : (
+                  news.map((item, i) => (
+                    <a
+                      key={`${item.symbol}-${i}`}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-start gap-4 border-t border-border-subtle px-7 py-4 transition-colors hover:bg-surface-primary"
+                    >
+                      <span className="mt-0.5 flex-shrink-0 rounded-md bg-surface-sunken px-2 py-1 font-cap text-[11px] font-semibold text-gold-deep">
+                        {item.symbol}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm leading-snug text-fg-primary group-hover:text-ink">{item.title}</p>
+                        <p className="mt-1 font-cap text-[11px] text-fg-muted">
+                          {item.source}{item.time ? ` · ${item.time}` : ""}
+                        </p>
+                      </div>
+                      <ExternalLink className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-fg-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                    </a>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Right column */}
+          <div className="flex flex-col gap-6">
+            {/* Picks card */}
+            <div className="overflow-hidden rounded-2xl border border-border-subtle bg-card">
+              <div className="flex flex-col gap-1 px-6 pb-4 pt-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-serif text-[22px] font-medium text-fg-primary">Today's top picks</h3>
+                  <button
+                    type="button"
+                    onClick={resetPickFilters}
+                    className="flex items-center gap-1 font-cap text-xs text-fg-muted transition-colors hover:text-fg-primary"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Reset
+                  </button>
+                </div>
+                <p className="font-cap text-xs text-fg-muted">
+                  {picksLoading
+                    ? "Loading picks…"
+                    : pickScanDate
+                      ? `Vegas Channel scan · ${formatScanDateShort(pickScanDate)} · ${pickCount} idea${pickCount === 1 ? "" : "s"}`
+                      : `Vegas Channel scan · ${pickCount} idea${pickCount === 1 ? "" : "s"}`}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 border-y border-border-subtle bg-surface-primary px-6 py-3.5">
+                <div ref={sectorRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setSectorOpen((o) => !o)}
+                    className="flex w-full items-center justify-between rounded-md border border-border-subtle bg-card px-3.5 py-2.5 text-left transition-colors hover:border-border-strong"
+                  >
+                    <span className="flex items-center gap-2 text-[13px] text-fg-secondary">
+                      <Layers className="h-3.5 w-3.5 text-fg-muted" /> {sectorLabel}
+                    </span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-fg-muted transition-transform", sectorOpen && "rotate-180")} />
+                  </button>
+                  {sectorOpen && (
+                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-56 overflow-y-auto rounded-xl border border-border-subtle bg-card py-1 shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedIndustry(null);
+                          setSectorOpen(false);
+                        }}
+                        className={cn(
+                          "block w-full px-4 py-2.5 text-left text-[13px] transition-colors hover:bg-surface-primary",
+                          !selectedIndustry ? "font-semibold text-fg-primary" : "text-fg-secondary",
+                        )}
                       >
-                        {indicator.change}
-                      </Badge>
+                        All sectors
+                      </button>
+                      {industries.map((ind) => (
+                        <button
+                          key={ind}
+                          type="button"
+                          onClick={() => {
+                            setSelectedIndustry(ind);
+                            setSectorOpen(false);
+                          }}
+                          className={cn(
+                            "block w-full px-4 py-2.5 text-left text-[13px] transition-colors hover:bg-surface-primary",
+                            selectedIndustry === ind ? "font-semibold text-fg-primary" : "text-fg-secondary",
+                          )}
+                        >
+                          {ind
+                            .split(/\s+/)
+                            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                            .join(" ")}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  {PICK_HORIZONS.map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setPickHorizon(id)}
+                      className={cn(
+                        "flex-1 rounded-full py-1.5 text-center font-cap text-xs font-semibold transition-colors",
+                        pickHorizon === id
+                          ? "bg-ink text-white"
+                          : "border border-border-subtle bg-card text-fg-secondary hover:border-border-strong",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {featuredPick ? (
+              <div className="flex flex-col gap-3.5 px-6 py-5">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 font-cap text-[11px] font-semibold text-fg-primary"><Star className="h-3 w-3" /> Pick of the day</span>
+                  <span className="font-cap text-[11px] text-fg-muted">Rank {featuredPick.rank} / {pickCount || featuredPick.rank}</span>
+                </div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="font-serif text-3xl font-semibold text-fg-primary">{featuredPick.symbol}</div>
+                    <div className="font-cap text-xs text-fg-muted">{featuredPick.name} · {featuredPick.sector}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-semibold text-fg-primary">
+                      {featuredPick.close != null ? `$${featuredPick.close.toFixed(2)}` : "—"}
+                    </div>
+                    <div className={cn("font-cap text-xs font-semibold", featuredPick.up ? "text-positive" : "text-negative")}>
+                      {formatPickReturn(featuredPick.returnPct)}
+                    </div>
+                    <div className="font-cap text-[10px] text-fg-muted">
+                      {pickReturnHorizonLabel(pickHorizon, pickScanDate ?? featuredPick.scanDate)}
+                    </div>
+                  </div>
+                </div>
+                {(pickAnalysisLoading || pickAnalysis) && (
+                  <div className="rounded-xl bg-surface-sunken/80 px-4 py-3.5">
+                    <div className="mb-2 flex items-center gap-2 font-cap text-[10px] font-semibold uppercase tracking-wide text-gold-deep">
+                      {pickAnalysisLoading ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" /> TradLyte AI
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3 w-3" /> TradLyte AI
+                        </>
+                      )}
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-fg-secondary">
+                      {pickAnalysisLoading ? "Reading today's pick…" : pickAnalysis}
+                    </p>
+                  </div>
+                )}
+                <button onClick={() => navigate(`/stock/${featuredPick.symbol}`)} className="flex items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-white">
+                  Analyze {featuredPick.symbol} <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              ) : !picksLoading ? (
+                <p className="px-6 py-5 font-cap text-sm text-fg-muted">No picks available right now.</p>
+              ) : null}
+              {listPicks.map((p) => (
+                <button
+                  key={p.symbol}
+                  onClick={() => navigate(`/stock/${p.symbol}`)}
+                  className="flex w-full items-center gap-3 border-t border-border-subtle px-6 py-3.5 text-left hover:bg-surface-primary"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-sunken font-cap text-xs font-semibold text-fg-secondary">{p.rank}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-fg-primary">{p.symbol}</span>
+                      <span className="font-cap text-xs text-fg-muted">{p.name}</span>
+                    </div>
+                    <span className="font-cap text-[11px] text-fg-muted">{p.sector}</span>
+                  </div>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className={cn("font-cap text-[13px] font-semibold", p.up ? "text-positive" : "text-negative")}>
+                      {formatPickReturn(p.returnPct)}
+                    </span>
+                    <span className="font-cap text-[10px] text-fg-muted">
+                      {pickReturnHorizonLabel(pickHorizon, p.scanDate)}
+                    </span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-fg-muted" />
+                </button>
+              ))}
+            </div>
+
+            {/* Purpose card */}
+            <div className="flex flex-col gap-3 rounded-2xl bg-ink p-6">
+              <span className="flex items-center gap-2 font-cap text-xs uppercase tracking-wide text-gold-tertiary">
+                <Compass className="h-4 w-4" /> Your purpose
+              </span>
+              {purposeStatement ? (
+                <>
+                  <p className="font-serif text-xl italic leading-snug text-white">
+                    “{purposeStatement}”
+                  </p>
+                  <Link to="/goals" className="flex items-center gap-1.5 font-cap text-[13px] font-medium text-gold-tertiary">
+                    Review my goals <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="font-serif text-xl italic leading-snug text-white/90">
+                    Why are you investing? Naming your purpose keeps your decisions steady.
+                  </p>
+                  <Link to="/goals" className="flex items-center gap-1.5 font-cap text-[13px] font-medium text-gold-tertiary">
+                    Set your purpose <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Wisdom card */}
+            <div className="flex flex-col gap-3.5 rounded-2xl border border-border-subtle bg-card p-6">
+              <Quote className="h-[22px] w-[22px] text-gold" />
+              <p className="font-serif text-[19px] leading-snug text-fg-primary">
+                The stock market is a device for transferring money from the impatient to the patient.
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="font-cap text-[13px] text-fg-muted">— Warren Buffett</span>
+                <div className="flex gap-1.5">
+                  <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-surface-sunken"><ChevronLeft className="h-3.5 w-3.5 text-fg-secondary" /></span>
+                  <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-surface-sunken"><ChevronRight className="h-3.5 w-3.5 text-fg-secondary" /></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Cooldown band — surfaced when a real holding has run up meaningfully */}
+        {shouldShowPrompt && cooldownEnabled && topHolding && topHolding.gain >= COOLDOWN_GAIN_THRESHOLD && (
+          <section className="px-6 pt-6 md:px-12">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-positive/20 bg-positive-soft px-5 py-4">
+              <div className="flex items-center gap-3.5">
+                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-positive/15">
+                  <PartyPopper className="h-[18px] w-[18px] text-positive" />
+                </span>
+                <div>
+                  <p className="text-[15px] font-semibold text-fg-primary">
+                    Great win on {topHolding.symbol} — up {topHolding.gain.toFixed(0)}% from your entry.
+                  </p>
+                  <p className="font-cap text-[13px] text-fg-secondary">Wins can tempt overtrading. Consider a 24-hour cooldown before your next move.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button className="flex items-center gap-1.5 rounded-full bg-positive px-4 py-2.5 font-cap text-[13px] font-semibold text-white">
+                  <Bell className="h-3.5 w-3.5" /> Remind me in 24h
+                </button>
+                <button className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-positive/25 text-positive">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Reflections */}
+        <section className="px-6 pb-14 pt-8 md:px-12">
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <h2 className="font-serif text-[28px] font-medium text-fg-primary">Your reflections</h2>
+              <p className="text-[15px] text-fg-secondary">A quiet record of how you thought — not just what you traded.</p>
+            </div>
+            <Link to="/journal" className="flex items-center gap-1.5 font-cap text-sm font-medium text-ink">
+              Open journal <ArrowRight className="h-[15px] w-[15px]" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
+            {/* Entries */}
+            <div className="overflow-hidden rounded-2xl border border-border-subtle bg-card">
+              <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
+                <span className="font-cap text-xs font-semibold uppercase tracking-wide text-fg-muted">Recent entries</span>
+                <span className="font-cap text-xs text-fg-muted">
+                  {entries.length} saved
+                </span>
+              </div>
+              {entriesLoading && entries.length === 0 ? (
+                <p className="px-6 py-10 text-center font-cap text-sm text-fg-muted">Loading your reflections…</p>
+              ) : recentReflections.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                  <p className="text-sm font-medium text-fg-secondary">No reflections yet</p>
+                  <p className="font-cap text-xs text-fg-muted">Your first entry starts the quiet record of how you think.</p>
+                  <Link to="/journal" className="mt-1 flex items-center gap-1.5 font-cap text-[13px] font-medium text-ink">
+                    <Feather className="h-3.5 w-3.5" /> Write your first reflection
+                  </Link>
+                </div>
+              ) : (
+                recentReflections.map((r, i) => (
+                  <div key={i} className="flex gap-4 border-b border-border-subtle px-6 py-4 last:border-b-0">
+                    <div className="w-24 flex-shrink-0">
+                      <div className="text-sm font-semibold text-fg-primary">{r.date}</div>
+                    </div>
+                    <div className="flex flex-1 flex-col gap-2">
+                      <p className="text-sm leading-relaxed text-fg-secondary">{r.text}</p>
+                      {r.tag && (
+                        <span className="w-fit rounded-full bg-surface-sunken px-2.5 py-1 font-cap text-[11px] text-fg-secondary">{r.tag}</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Right side */}
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-card p-6">
+                <span className="font-cap text-xs font-semibold uppercase tracking-wide text-fg-muted">Journal insights</span>
+                <div className="grid grid-cols-3 divide-x divide-border-subtle">
+                  {[
+                    { v: String(entries.length), l: "Entries" },
+                    { v: String(journalStreak), l: "Day streak" },
+                    { v: avgMood ?? "—", l: "Avg mood" },
+                  ].map((s) => (
+                    <div key={s.l} className="flex flex-col items-center gap-1 px-1">
+                      <span className="font-serif text-2xl font-medium text-fg-primary">{s.v}</span>
+                      <span className="font-cap text-[11px] text-fg-muted">{s.l}</span>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-            )}
-
-            {/* Stock Search */}
-            <Card className="shadow-elegant border-border/50 bg-gradient-to-br from-primary/5 via-background to-accent/5">
-              <CardContent className="py-8">
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mb-2">
-                    Start Exploring Things That Can Achieve Your Goal Here
-                    </h2>
-                    <p className="text-muted-foreground">
-                    Discover stocks and investments aligned with your financial purpose
-                    </p>
+                <div className="flex flex-col gap-2 border-t border-border-subtle pt-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-fg-primary">Level {rewardLevel} · {rewardLevelLabel(rewardLevel)}</span>
+                    <span className="font-cap text-xs text-fg-muted">{rewardPoints} pts</span>
                   </div>
-                <form onSubmit={handleSearch} className="relative max-w-3xl mx-auto">
-                    <div className="relative group">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors z-10" />
-                      <Input
-                        type="text"
-                        placeholder="Search any stock symbol (e.g., AAPL, TSLA, NVDA)"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-16 md:h-20 pl-14 pr-36 text-lg md:text-xl bg-background border-2 border-border hover:border-primary/50 focus:border-primary rounded-2xl transition-all shadow-lg"
-                      />
-                      <Button
-                        type="submit"
-                        size="lg"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 shadow-elegant h-12 px-6"
-                      >
-                        Analyze
-                        <TrendingUp className="ml-2 h-5 w-5" />
-                      </Button>
-                    </div>
-                  </form>
-                <div className="flex flex-wrap justify-center gap-2 mt-6 text-sm">
-                  <span className="text-muted-foreground self-center">Popular:</span>
-                  {["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL"].map((symbol) => (
-                      <button
-                        key={symbol}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(`/stock/${symbol}`);
-                      }}
-                      className="px-4 py-2 rounded-full bg-primary/10 hover:bg-primary/20 hover:text-primary text-primary font-semibold transition-all border border-primary/20 hover:border-primary/40 hover:scale-105"
-                      >
-                        {symbol}
-                      </button>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Floating Wisdom Quote Banner */}
-          <WisdomQuoteBanner />
-
-          {/* Focus Mode Toggle */}
-          <div className="flex justify-end">
-            <FocusModeToggle />
-          </div>
-
-          {/* Growth Summary Scorecard & Growth Chart Side by Side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <EntryPriceGrowth />
-            {!focusMode && <GrowthChart />}
-          </div>
-
-          {/* Cooldown Prompt */}
-          {shouldShowPrompt && cooldownEnabled && (
-            <CooldownPrompt 
-              onEnable={enableCooldown}
-              onDismiss={() => {}}
-            />
-          )}
-
-          {/* Portfolio Summary with Tradlyte Scores & % Change */}
-          {portfolioItems.length > 0 && (
-            <Card className="shadow-elegant border-border/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl font-display flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-primary" />
-                      Portfolio Summary
-                    </CardTitle>
-                    <CardDescription>Your holdings with entry-price-based performance</CardDescription>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface-sunken">
+                    <div className="h-2 rounded-full bg-gold-deep" style={{ width: `${levelProgressPct}%` }} />
                   </div>
-                  <Badge className="bg-primary/10 text-primary border-0">
-                    <Zap className="w-3 h-3 mr-1" />
-                    {portfolioItems.length} Holding{portfolioItems.length !== 1 ? 's' : ''}
-                  </Badge>
+                  <span className="font-cap text-[11px] text-fg-muted">
+                    {nextThreshold ? `${ptsToNext} pts to Level ${rewardLevel + 1}` : "Top tier reached"}
+                  </span>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {portfolioItems.map((item) => {
-                    const entryPrice = item.purchase_price || 0;
-                    const currentPrice = item.current_price || entryPrice;
-                    const quantity = item.quantity || 0;
-                    const entryValue = entryPrice * quantity;
-                    const currentValue = currentPrice * quantity;
-                    const gain = currentValue - entryValue;
-                    const gainPercent = entryValue > 0 ? (gain / entryValue) * 100 : 0;
-                    // Calculate Tradlyte score based on performance (simple algorithm)
-                    const score = Math.min(100, Math.max(0, 50 + (gainPercent * 2)));
-                    
-                    return (
-                      <div 
-                        key={item.id}
-                        className="p-4 rounded-lg border border-border/50 hover:border-primary/50 transition-colors group"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-1">
-                              <span className="font-semibold text-lg text-foreground">{item.asset_name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {item.asset_type}
-                              </Badge>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Entry: <span className="font-mono">${entryPrice.toFixed(2)}</span> | 
-                              Current: <span className="font-mono">${currentPrice.toFixed(2)}</span> | 
-                              Qty: <span className="font-mono">{quantity}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-lg font-bold ${gain >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                              {gain >= 0 ? '+' : ''}${gain.toFixed(2)}
-                            </div>
-                            <div className={`text-sm ${gainPercent >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                              {gainPercent >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            <span className="text-xs text-muted-foreground">Tradlyte Score:</span>
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all"
-                                  style={{ width: `${score}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-semibold text-primary w-8">{Math.round(score)}</span>
-                            </div>
-                          </div>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <RegretSystem 
-                              stockSymbol={item.asset_name}
-                              industry={item.asset_type}
-                              onRegretAdded={() => {
-                                // Refresh portfolio
-                                window.location.reload();
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
 
-          {/* Goals & Journal Side by Side with Portfolio */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Goals Section */}
-            <Card className="shadow-card border-border/50">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-display flex items-center gap-2">
-                    <Target className="h-5 w-5 text-primary" />
-                    Goal Progress
-                  </CardTitle>
-                  <Badge variant="outline" className="text-xs">
-                    <Trophy className="w-3 h-3 mr-1" />
-                    {goals.length} Active
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {goals.length > 0 ? (
-                  goals.slice(0, 2).map((goal) => (
-                    <div key={goal.id} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-foreground line-clamp-1">{goal.title}</span>
-                      <span className="text-muted-foreground font-mono text-xs">
-                          ${goal.current_amount ? parseFloat(goal.current_amount.toString()).toLocaleString() : '0'} / ${goal.target_amount ? parseFloat(goal.target_amount.toString()).toLocaleString() : '0'}
-                      </span>
-                    </div>
-                    <Progress value={goal.progress} className="h-2" />
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-muted-foreground mb-3">No goals yet</p>
-                    <Link to="/goals">
-                      <Button size="sm" variant="outline">
-                        <Target className="h-4 w-4 mr-2" />
-                        Create Goal
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-                <Link to="/goals">
-                  <Button variant="ghost" size="sm" className="w-full">
-                    View All Goals
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+              <div className="flex flex-col gap-3.5 rounded-2xl bg-gold p-6">
+                <h3 className="font-serif text-[22px] font-medium text-fg-primary">Capture today's thinking</h3>
+                <p className="text-[13px] leading-relaxed text-fg-primary/80">
+                  A two-minute reflection keeps your decisions honest — and earns you +25 points.
+                </p>
+                <Link to="/journal" className="flex items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-white">
+                  <Feather className="h-[15px] w-[15px]" /> Write a reflection
                 </Link>
-              </CardContent>
-            </Card>
-
-            {/* Journal Section */}
-            <Card className="shadow-card border-border/50">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-display flex items-center gap-2">
-                    <BookOpen className="h-5 w-5 text-accent" />
-                    Journal Insights
-                  </CardTitle>
-                  <Badge variant="outline" className="text-xs bg-accent/10 border-accent/30 text-accent">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {journalStats.weekStreak} week streak
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="p-4 rounded-lg bg-muted/30 text-center">
-                    <div className="text-2xl font-bold text-foreground">{journalStats.totalEntries}</div>
-                    <div className="text-xs text-muted-foreground">Total Entries</div>
-                  </div>
-                  <div className="p-4 rounded-lg bg-muted/30 text-center">
-                    <div className="text-2xl font-bold text-accent">{journalStats.avgMood}</div>
-                    <div className="text-xs text-muted-foreground">Avg Mood</div>
-                  </div>
-                </div>
-                <Link to="/journal">
-                  <Button variant="ghost" size="sm" className="w-full">
-                    <Brain className="h-4 w-4 mr-2" />
-                    Start Writing
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Purpose Reminder */}
-            <Card className="shadow-card border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  Your Purpose
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PurposeReminder />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
-
-        </div>
+        </section>
       </main>
       <Footer />
+
+      {/* Regret flow: record the reason, then invite a reflection in the journal */}
+      <Dialog open={regretFor !== null} onOpenChange={(open) => !open && setRegretFor(null)}>
+        <DialogContent>
+          {!regretRecorded ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>What do you regret about {regretFor?.symbol}?</DialogTitle>
+                <DialogDescription>
+                  Naming it honestly is the first step — you'll get a chance to reflect on it next.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="flex flex-wrap gap-2">
+                  {REGRET_REASONS.map((r) => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setRegretReason(r.value)}
+                      aria-pressed={regretReason === r.value}
+                      className={cn(
+                        "rounded-full px-4 py-2 font-cap text-[13px] font-medium transition-colors",
+                        regretReason === r.value
+                          ? "bg-ink text-white"
+                          : "border border-border-subtle bg-card text-fg-secondary hover:border-border-strong",
+                      )}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  value={regretNote}
+                  onChange={(e) => setRegretNote(e.target.value)}
+                  placeholder="Optional — what would you do differently?"
+                  rows={3}
+                />
+              </div>
+              <DialogFooter>
+                <button
+                  onClick={() => setRegretFor(null)}
+                  className="rounded-full border border-border-strong px-5 py-2.5 text-sm font-semibold text-fg-primary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitRegret}
+                  disabled={regretSaving}
+                  className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {regretSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Frown className="h-4 w-4" />}
+                  {regretSaving ? "Recording…" : "Record regret"}
+                </button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Recorded. Now turn it into a lesson.</DialogTitle>
+                <DialogDescription>
+                  Writing down why keeps the same regret from repeating. A two-minute reflection is enough.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <button
+                  onClick={() => setRegretFor(null)}
+                  className="rounded-full border border-border-strong px-5 py-2.5 text-sm font-semibold text-fg-primary"
+                >
+                  Maybe later
+                </button>
+                <button
+                  onClick={journalThisRegret}
+                  className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white"
+                >
+                  <Feather className="h-4 w-4" /> Write a reflection
+                </button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

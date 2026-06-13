@@ -76,18 +76,36 @@ export type Database = {
           created_at: string | null
           full_name: string | null
           id: string
+          investment_experience: string | null
+          onboarding_complete: boolean
+          primary_goal: string | null
+          purpose_statement: string | null
+          risk_tolerance: string | null
+          time_horizon: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           full_name?: string | null
           id: string
+          investment_experience?: string | null
+          onboarding_complete?: boolean
+          primary_goal?: string | null
+          purpose_statement?: string | null
+          risk_tolerance?: string | null
+          time_horizon?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          investment_experience?: string | null
+          onboarding_complete?: boolean
+          primary_goal?: string | null
+          purpose_statement?: string | null
+          risk_tolerance?: string | null
+          time_horizon?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -177,6 +195,48 @@ export type Database = {
           strategy_description?: string | null
           strategy_name?: string | null
           strategy_progress?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_regrets: {
+        Row: {
+          created_at: string | null
+          id: string
+          industry: string | null
+          notes: string | null
+          portfolio_id: string | null
+          reason: string
+          reason_code: string | null
+          stock_symbol: string
+          trade_date: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          notes?: string | null
+          portfolio_id?: string | null
+          reason: string
+          reason_code?: string | null
+          stock_symbol: string
+          trade_date?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          notes?: string | null
+          portfolio_id?: string | null
+          reason?: string
+          reason_code?: string | null
+          stock_symbol?: string
+          trade_date?: string | null
           updated_at?: string | null
           user_id?: string
         }

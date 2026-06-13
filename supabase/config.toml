@@ -1,1 +1,10 @@
-project_id = "mdaazsmkgwtqmlkxxknm"
+project_id = "vdtjgjhfcmrpbuoabyup"
+
+# Public read-only market data proxy. The upstream gateway API key is injected
+# server-side (Edge secret), so we don't need Supabase to gate by JWT.
+[functions.market-proxy]
+verify_jwt = false
+
+# AI chat (MiniMax) — per-user; requires session JWT.
+[functions.ai-chat]
+verify_jwt = true

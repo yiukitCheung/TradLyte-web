@@ -5,13 +5,6 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Debug: Check if variables are loaded
-console.log('Environment check:', {
-  hasUrl: !!SUPABASE_URL,
-  hasKey: !!SUPABASE_PUBLISHABLE_KEY,
-  urlPreview: SUPABASE_URL ? SUPABASE_URL.substring(0, 30) + '...' : 'MISSING'
-});
-
 // Validate before creating client
 if (!SUPABASE_URL) {
   throw new Error(

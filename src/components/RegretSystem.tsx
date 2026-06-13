@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,67 +8,90 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { AlertTriangle } from 'lucide-react';
-import { addRegret, type Regret } from '@/lib/regretUtils';
-import { toast } from 'sonner';
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import { addUserRegret, REGRET_REASONS } from "@/lib/regretUtils";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface RegretSystemProps {
   stockSymbol: string;
   industry?: string;
+  portfolioId?: string | null;
+  alreadyMarked?: boolean;
   onRegretAdded?: () => void;
 }
 
-const REGRET_REASONS = [
-  { value: 'exited_early', label: 'Exited too early' },
-  { value: 'not_aligned', label: "Didn't align with goals" },
-  { value: 'emotional', label: 'Emotional decision' },
-  { value: 'other', label: 'Other' },
-];
-
-const RegretSystem = ({ stockSymbol, industry, onRegretAdded }: RegretSystemProps) => {
+const RegretSystem = ({
+  stockSymbol,
+  industry,
+  portfolioId,
+  alreadyMarked = false,
+  onRegretAdded,
+}: RegretSystemProps) => {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState('');
-  const [notes, setNotes] = useState('');
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!user) {
+      toast.error("Sign in to log a regret");
+      return;
+    }
     if (!reason) {
-      toast.error('Please select a reason for this regret');
+      toast.error("Please select a reason for this regret");
       return;
     }
 
-    const regret: Regret = {
-      stockSymbol,
-      date: new Date().toISOString(),
-      reason: REGRET_REASONS.find(r => r.value === reason)?.label || reason,
-      notes: notes.trim() || undefined,
-      industry: industry || undefined,
-    };
-
-    addRegret(regret);
-    toast.success('Regret logged. We\'ll remind you if you consider similar trades.');
-    setOpen(false);
-    setReason('');
-    setNotes('');
-    onRegretAdded?.();
+    setSaving(true);
+    try {
+      await addUserRegret(user.id, {
+        stockSymbol,
+        portfolioId,
+        industry,
+        reason: REGRET_REASONS.find((r) => r.value === reason)?.label || reason,
+        reasonCode: reason,
+        notes: notes.trim() || undefined,
+      });
+      toast.success("Regret saved to your account. We'll remind you on similar trades.");
+      setOpen(false);
+      setReason("");
+      setNotes("");
+      onRegretAdded?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to save regret";
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (alreadyMarked) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-negative/30 bg-negative-soft px-3 py-1.5 font-cap text-xs font-medium text-negative">
+        <Check className="h-3 w-3" /> Regret logged
+      </span>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-          <AlertTriangle className="h-4 w-4 mr-1" />
-          Mark as Regret
+          <AlertTriangle className="mr-1 h-4 w-4" />
+          Mark as regret
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Mark {stockSymbol} as Regret</DialogTitle>
+          <DialogTitle>Mark {stockSymbol} as regret</DialogTitle>
           <DialogDescription>
-            Help us learn from this experience. We'll warn you if you consider similar trades in the future.
+            Document what went wrong. This saves to your TradLyte profile and triggers guardrails on similar trades.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -78,7 +101,7 @@ const RegretSystem = ({ stockSymbol, industry, onRegretAdded }: RegretSystemProp
               {REGRET_REASONS.map((option) => (
                 <div key={option.value} className="flex items-center space-x-2">
                   <RadioGroupItem value={option.value} id={option.value} />
-                  <Label htmlFor={option.value} className="font-normal cursor-pointer">
+                  <Label htmlFor={option.value} className="cursor-pointer font-normal">
                     {option.label}
                   </Label>
                 </div>
@@ -97,11 +120,17 @@ const RegretSystem = ({ stockSymbol, industry, onRegretAdded }: RegretSystemProp
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} variant="destructive">
-            Mark as Regret
+          <Button onClick={handleSubmit} variant="destructive" disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Saving…
+              </>
+            ) : (
+              "Save regret"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

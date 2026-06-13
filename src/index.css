@@ -2,122 +2,167 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-Warm & Friendly color scheme - coral primary, amber accent
-*/
+/* ============================================================
+   TradLyte design system — editorial taupe/beige.
+   Source of truth: TradLyte-UX:UI.pen design tokens.
+   All colors are HSL. Light is the designed mode; .dark is an
+   approximate scaffold kept so the theme toggle still works.
+   ============================================================ */
 
 @layer base {
   :root {
-    --background: 30 40% 99%;
-    --foreground: 20 25% 18%;
+    /* Surfaces */
+    --background: 36 19% 95%;        /* surface-primary  #F4F2EF */
+    --foreground: 0 0% 10%;          /* fg-primary       #1A1A1A */
 
-    --card: 0 0% 100%;
-    --card-foreground: 20 25% 18%;
+    --card: 40 27% 98%;              /* surface-card     #FBFAF8 */
+    --card-foreground: 0 0% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 20 25% 18%;
+    --popover: 40 27% 98%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 12 76% 61%;
+    /* Surface scale (design-specific, used directly in refactors) */
+    --surface-primary: 36 19% 95%;
+    --surface-card: 40 27% 98%;
+    --surface-sunken: 40 19% 91%;    /* surface-sunken   #ECE9E3 */
+    --surface-inverse: 0 0% 10%;     /* surface-inverse  #1A1A1A */
+
+    /* Primary action = ink navy (#384F84) */
+    --primary: 222 40% 37%;          /* accent-ink */
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 12 85% 70%;
 
-    --secondary: 30 30% 96%;
-    --secondary-foreground: 20 25% 18%;
+    /* Brand gold accent (#C8B496) */
+    --accent: 36 31% 69%;            /* accent-primary */
+    --accent-foreground: 0 0% 10%;
+    --accent-deep: 41 30% 52%;       /* accent-deep      #A8915F */
+    --accent-tertiary: 37 33% 75%;   /* accent-tertiary  #D4C4AA */
+    --accent-ink: 222 40% 37%;       /* accent-ink       #384F84 */
 
-    --muted: 30 25% 95%;
-    --muted-foreground: 20 15% 46%;
+    --secondary: 40 19% 91%;         /* surface-sunken */
+    --secondary-foreground: 0 0% 10%;
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 20 25% 12%;
-    --accent-glow: 40 95% 60%;
+    --muted: 40 19% 91%;
+    --muted-foreground: 39 6% 51%;   /* fg-muted         #8A857C */
 
-    --destructive: 0 72% 51%;
+    /* Foreground scale */
+    --fg-primary: 0 0% 10%;
+    --fg-secondary: 0 0% 29%;        /* fg-secondary     #4A4A4A */
+    --fg-muted: 39 6% 51%;
+    --fg-inverse: 0 0% 100%;
+
+    /* Status */
+    --positive: 147 33% 36%;         /* pos              #3E7C5A */
+    --positive-soft: 132 23% 91%;    /* pos-soft         #E4EEE6 */
+    --negative: 12 47% 47%;          /* neg              #B0553F */
+    --negative-soft: 16 42% 91%;     /* neg-soft         #F2E4DF */
+
+    --destructive: 12 47% 47%;       /* neg */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 20% 90%;
-    --input: 30 20% 90%;
-    --ring: 12 76% 61%;
+    /* Lines */
+    --border: 40 18% 90%;            /* border-subtle    #EAE7E1 */
+    --border-subtle: 40 18% 90%;
+    --border-strong: 39 15% 82%;     /* border-strong    #D8D3CA */
+    --input: 39 15% 82%;
+    --ring: 222 40% 37%;
 
-    --radius: 0.75rem;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(12 76% 61%), hsl(20 85% 65%));
-    --gradient-accent: linear-gradient(135deg, hsl(38 92% 50%), hsl(45 95% 55%));
-    --gradient-subtle: linear-gradient(180deg, hsl(30 40% 99%), hsl(35 35% 97%));
-    
-    --shadow-elegant: 0 10px 30px -10px hsl(12 76% 61% / 0.25);
-    --shadow-card: 0 2px 8px -2px hsl(20 25% 18% / 0.08);
-    
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --radius: 1rem;                  /* r-lg 16 */
 
-    --sidebar-background: 30 30% 98%;
-    --sidebar-foreground: 20 25% 26%;
-    --sidebar-primary: 12 76% 61%;
+    --gradient-primary: radial-gradient(120% 90% at 22% 16%, hsl(41 30% 52% / 0.62), transparent 70%), radial-gradient(80% 70% at 90% 95%, hsl(36 31% 69% / 0.30), transparent 70%);
+    --gradient-accent: linear-gradient(135deg, hsl(36 31% 69%), hsl(37 33% 75%));
+    --gradient-subtle: linear-gradient(180deg, hsl(36 19% 95%), hsl(40 19% 91%));
+
+    --shadow-elegant: 0 18px 40px -24px hsl(0 0% 10% / 0.22);
+    --shadow-card: 0 1px 2px hsl(0 0% 10% / 0.04), 0 1px 3px hsl(0 0% 10% / 0.03);
+
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 40 27% 98%;
+    --sidebar-foreground: 0 0% 29%;
+    --sidebar-primary: 222 40% 37%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 25% 95%;
-    --sidebar-accent-foreground: 20 25% 18%;
-    --sidebar-border: 30 20% 91%;
-    --sidebar-ring: 12 76% 61%;
+    --sidebar-accent: 40 19% 91%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 40 18% 90%;
+    --sidebar-ring: 222 40% 37%;
 
-    --chart-1: 12 76% 61%;
-    --chart-2: 175 60% 45%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 262 60% 58%;
-    --chart-5: 200 70% 50%;
+    --chart-1: 222 40% 37%;          /* ink */
+    --chart-2: 36 31% 69%;           /* gold */
+    --chart-3: 147 33% 36%;          /* positive */
+    --chart-4: 41 30% 52%;           /* deep gold */
+    --chart-5: 12 47% 47%;           /* negative */
   }
 
   .dark {
-    --background: 20 25% 9%;
-    --foreground: 30 20% 95%;
+    --background: 0 0% 9%;
+    --foreground: 36 19% 95%;
 
-    --card: 20 20% 12%;
-    --card-foreground: 30 20% 95%;
+    --card: 0 0% 12%;
+    --card-foreground: 36 19% 95%;
 
-    --popover: 20 20% 12%;
-    --popover-foreground: 30 20% 95%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 36 19% 95%;
 
-    --primary: 14 80% 65%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 14 90% 72%;
+    --surface-primary: 0 0% 9%;
+    --surface-card: 0 0% 12%;
+    --surface-sunken: 0 0% 14%;
+    --surface-inverse: 36 19% 95%;
 
-    --secondary: 20 18% 18%;
-    --secondary-foreground: 30 20% 95%;
+    --primary: 36 31% 69%;
+    --primary-foreground: 0 0% 10%;
 
-    --muted: 20 18% 18%;
-    --muted-foreground: 30 15% 60%;
+    --accent: 36 31% 69%;
+    --accent-foreground: 0 0% 10%;
+    --accent-deep: 41 30% 52%;
+    --accent-tertiary: 37 33% 75%;
+    --accent-ink: 222 40% 60%;
 
-    --accent: 40 95% 55%;
-    --accent-foreground: 20 25% 10%;
-    --accent-glow: 42 98% 62%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 36 19% 95%;
 
-    --destructive: 0 72% 51%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 39 8% 62%;
+
+    --fg-primary: 36 19% 95%;
+    --fg-secondary: 36 12% 80%;
+    --fg-muted: 39 8% 62%;
+    --fg-inverse: 0 0% 10%;
+
+    --positive: 147 35% 55%;
+    --positive-soft: 147 20% 18%;
+    --negative: 12 55% 60%;
+    --negative-soft: 12 30% 18%;
+
+    --destructive: 12 55% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 20 18% 20%;
-    --input: 20 18% 20%;
-    --ring: 14 80% 65%;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(14 80% 65%), hsl(22 88% 68%));
-    --gradient-accent: linear-gradient(135deg, hsl(40 95% 55%), hsl(48 98% 60%));
-    --gradient-subtle: linear-gradient(180deg, hsl(20 25% 9%), hsl(20 22% 11%));
-    
-    --shadow-elegant: 0 10px 30px -10px hsl(14 80% 65% / 0.35);
-    --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.4);
-    
-    --sidebar-background: 20 22% 10%;
-    --sidebar-foreground: 30 20% 95%;
-    --sidebar-primary: 14 80% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 20 18% 16%;
-    --sidebar-accent-foreground: 30 20% 95%;
-    --sidebar-border: 20 18% 16%;
-    --sidebar-ring: 14 80% 65%;
+    --border: 0 0% 18%;
+    --border-subtle: 0 0% 18%;
+    --border-strong: 0 0% 24%;
+    --input: 0 0% 24%;
+    --ring: 36 31% 69%;
 
-    --chart-1: 14 80% 65%;
-    --chart-2: 175 65% 50%;
-    --chart-3: 40 95% 55%;
-    --chart-4: 262 65% 62%;
-    --chart-5: 200 75% 55%;
+    --gradient-primary: radial-gradient(120% 90% at 22% 16%, hsl(41 30% 52% / 0.5), transparent 70%), radial-gradient(80% 70% at 90% 95%, hsl(36 31% 69% / 0.22), transparent 70%);
+    --gradient-accent: linear-gradient(135deg, hsl(41 30% 52%), hsl(36 31% 69%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 9%), hsl(0 0% 11%));
+
+    --shadow-elegant: 0 18px 40px -24px hsl(0 0% 0% / 0.5);
+    --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4);
+
+    --sidebar-background: 0 0% 11%;
+    --sidebar-foreground: 36 19% 95%;
+    --sidebar-primary: 36 31% 69%;
+    --sidebar-primary-foreground: 0 0% 10%;
+    --sidebar-accent: 0 0% 16%;
+    --sidebar-accent-foreground: 36 19% 95%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 36 31% 69%;
+
+    --chart-1: 36 31% 69%;
+    --chart-2: 222 40% 60%;
+    --chart-3: 147 35% 55%;
+    --chart-4: 41 30% 52%;
+    --chart-5: 12 55% 60%;
   }
 }
 
@@ -127,7 +172,12 @@ Warm & Friendly color scheme - coral primary, amber accent
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv01";
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-serif;
   }
 }
 
@@ -159,4 +209,153 @@ Warm & Friendly color scheme - coral primary, amber accent
 
 .animate-slide-in {
   animation: slide-in 0.5s ease-out;
+}
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes landing-grow-bar {
+  from {
+    transform: scaleY(0);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes landing-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 0.9s ease-out both;
+}
+
+.landing-float {
+  animation: landing-float 7s ease-in-out infinite;
+}
+
+.landing-float-delayed {
+  animation: landing-fade-up 0.9s ease-out both, landing-float 7s ease-in-out 1.2s infinite;
+}
+
+.landing-grow-bar {
+  transform-origin: bottom;
+  animation: landing-grow-bar 0.7s ease-out both;
+}
+
+.landing-step-icon {
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+.landing-step-icon:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-elegant);
+}
+
+.landing-progress {
+  transform-origin: left;
+  animation: landing-progress 1.2s ease-out 0.3s both;
+}
+
+/* Strategy lab — indicator visuals draw themselves when their card is active */
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes signal-ping {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes candle-grow {
+  from {
+    transform: scaleY(0.35);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.signal-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 1.4s ease-out both;
+}
+
+.signal-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: signal-ping 2.2s ease-out infinite;
+}
+
+.candle-grow {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: candle-grow 0.6s ease-out both;
+}
+
+/* Cascading entrance for cards, tiles, and table rows (use with animation-delay).
+   Fill backwards only, so hover transforms still apply after the entrance ends. */
+.stagger-fade {
+  animation: fade-in 0.5s ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-fade-up,
+  .landing-float,
+  .landing-float-delayed,
+  .landing-grow-bar,
+  .landing-progress,
+  .animate-fade-in,
+  .animate-slide-in,
+  .signal-draw,
+  .signal-ping,
+  .candle-grow,
+  .stagger-fade {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .signal-draw {
+    stroke-dashoffset: 0 !important;
+  }
 }
