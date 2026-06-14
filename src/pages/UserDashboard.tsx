@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
@@ -81,6 +81,7 @@ import {
   splitWinnersLosers,
   type PortfolioCurvePoint,
 } from "@/lib/portfolioUtils";
+import { useDelayedPrices } from "@/hooks/useDelayedPrice";
 import { consecutiveJournalDays } from "@/lib/journalStreak";
 import { averageMood, type JournalEntryView } from "@/lib/journalUtils";
 import { fetchProfilePurpose } from "@/lib/purposeUtils";
@@ -185,12 +186,32 @@ const UserDashboard = () => {
   const [regretSaving, setRegretSaving] = useState(false);
   const [regretRecorded, setRegretRecorded] = useState(false);
 
-  const portfolioValue = holdings.reduce((sum, h) => sum + h.current * h.qty, 0);
-  const portfolioCost = holdings.reduce((sum, h) => sum + h.entry * h.qty, 0);
+  // Live-ish (15-min delayed) prices for held symbols, polled while visible + market open.
+  const livePrices = useDelayedPrices(
+    holdings.map((h) => h.symbol),
+    holdings.length > 0,
+  );
+  // Merge live prices over the stored daily price; recompute gain/momentum.
+  const displayHoldings = useMemo(
+    () =>
+      holdings.map((h) => {
+        const live = livePrices.get(h.symbol.toUpperCase());
+        if (!live) return h;
+        const current = live.price;
+        const gain = h.entry > 0 ? ((current - h.entry) / h.entry) * 100 : 0;
+        const score = Math.min(100, Math.max(0, Math.round(50 + gain * 2)));
+        return { ...h, current, gain, momentum: momentumLabel(score), score };
+      }),
+    [holdings, livePrices],
+  );
+  const pricesAreLive = livePrices.size > 0;
+
+  const portfolioValue = displayHoldings.reduce((sum, h) => sum + h.current * h.qty, 0);
+  const portfolioCost = displayHoldings.reduce((sum, h) => sum + h.entry * h.qty, 0);
   const portfolioGainPct = portfolioCost > 0 ? ((portfolioValue - portfolioCost) / portfolioCost) * 100 : 0;
 
   // What's doing great / what's not — derived from real holdings.
-  const { top: topHolding, bottom: bottomHolding } = splitWinnersLosers(holdings);
+  const { top: topHolding, bottom: bottomHolding } = splitWinnersLosers(displayHoldings);
 
   // Journal insights — real points, level, streak, and average mood.
   const rewardPoints = entries.length * POINTS_PER_JOURNAL_ENTRY;
@@ -783,6 +804,7 @@ const UserDashboard = () => {
                   <h3 className="font-serif text-[22px] font-medium text-fg-primary">Your portfolio</h3>
                   <p className="font-cap text-xs text-fg-muted">
                     {holdings.length} holdings · framed against your entry price
+                    {pricesAreLive ? " · live · delayed 15 min" : ""}
                   </p>
                 </div>
                 <button className="flex items-center gap-1.5 font-cap text-[13px] font-medium text-ink">
@@ -800,7 +822,7 @@ const UserDashboard = () => {
                   <p className="font-cap text-xs text-fg-muted">Analyze a stock to start tracking it against your entry price.</p>
                 </div>
               ) : null}
-              {holdings.map((h) => (
+              {displayHoldings.map((h) => (
                 <div
                   key={h.symbol}
                   className="grid grid-cols-[1fr_84px_84px_90px_56px_88px_140px_32px] items-center gap-2 border-b border-border-subtle px-7 py-4 last:border-b-0"

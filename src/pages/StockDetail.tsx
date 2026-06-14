@@ -53,6 +53,7 @@ import {
 } from "@/lib/marketApi";
 import { cn } from "@/lib/utils";
 import { ANALYST_SYSTEM_PROMPT, requestAiChat, toAiMessages } from "@/lib/aiChat";
+import { useIntradaySeries } from "@/hooks/useDelayedPrice";
 
 const stockNames: Record<string, string> = {
   AAPL: "Apple Inc.",
@@ -110,8 +111,18 @@ const StockDetail = () => {
 
   const sym = symbol || "AAPL";
   const name = quoteData?.name || stockNames[sym] || `${sym}`;
-  const last = toSafeNumber(quoteData?.close) ?? priceData[priceData.length - 1]?.price ?? null;
-  const first = priceData[0]?.price ?? toSafeNumber(quoteData?.open);
+
+  // 1-day intraday (delayed) from Polygon; polled while the tab is visible + market open.
+  const intraday = useIntradaySeries(symbol, period === "1D");
+  const isIntraday = period === "1D" && intraday.series.length > 0;
+  const chartData = isIntraday ? intraday.series : priceData;
+
+  const last = isIntraday
+    ? intraday.latest?.price ?? null
+    : toSafeNumber(quoteData?.close) ?? priceData[priceData.length - 1]?.price ?? null;
+  const first = isIntraday
+    ? intraday.series[0]?.price ?? null
+    : priceData[0]?.price ?? toSafeNumber(quoteData?.open);
   const change = last != null && first != null ? last - first : 0;
   const changePct = first && first !== 0 ? (change / first) * 100 : 0;
   const score = user ? 78 : 72;
@@ -550,11 +561,15 @@ const StockDetail = () => {
               </div>
             </div>
             <div className="h-[260px] w-full">
-              {marketLoading && priceData.length === 0 ? (
-                <div className="flex h-full items-center justify-center font-cap text-sm text-fg-muted">Loading chart…</div>
+              {chartData.length === 0 ? (
+                <div className="flex h-full items-center justify-center font-cap text-sm text-fg-muted">
+                  {(period === "1D" ? intraday.loading : marketLoading)
+                    ? "Loading chart…"
+                    : "No data for this range"}
+                </div>
               ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={priceData}>
+                <LineChart data={chartData}>
                   <YAxis hide domain={["dataMin - 5", "dataMax + 5"]} />
                   <Tooltip
                     contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px" }}

@@ -8,3 +8,7 @@ verify_jwt = false
 # AI chat (MiniMax) — per-user; requires session JWT.
 [functions.ai-chat]
 verify_jwt = true
+
+# Public delayed intraday price proxy (Polygon). Key injected server-side.
+[functions.polygon-proxy]
+verify_jwt = false
