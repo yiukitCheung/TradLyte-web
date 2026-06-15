@@ -29,19 +29,27 @@ export const useAuth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/dashboard`;
-    
+  // Sign up with email + password, but use the phone number as the validation
+  // factor. With "Confirm phone" enabled, Supabase sends an SMS OTP as part of
+  // sign-up and only returns a session once that code is verified.
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+  ) => {
     const { error } = await supabase.auth.signUp({
       email,
+      phone,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
-        }
-      }
-    });
+        },
+      },
+      // The JS types model email/phone as mutually exclusive, but gotrue accepts
+      // both on the signup endpoint.
+    } as Parameters<typeof supabase.auth.signUp>[0]);
     return { error };
   };
 
@@ -50,11 +58,30 @@ export const useAuth = () => {
       email,
       password,
     });
-    
+
     if (!error) {
       navigate('/dashboard');
     }
-    
+
+    return { error };
+  };
+
+  // Confirm the SMS OTP sent during sign-up. This establishes the session.
+  const verifyPhone = async (phone: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      phone,
+      token,
+      type: 'sms',
+    });
+    return { error };
+  };
+
+  // Re-send the SMS OTP for an account whose phone isn't verified yet.
+  const resendPhoneOtp = async (phone: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+      options: { shouldCreateUser: false },
+    });
     return { error };
   };
 
@@ -72,6 +99,8 @@ export const useAuth = () => {
     loading,
     signUp,
     signIn,
+    verifyPhone,
+    resendPhoneOtp,
     signOut,
   };
 };

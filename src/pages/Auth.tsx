@@ -7,27 +7,60 @@ import { toast } from "sonner";
 import {
   Eye,
   EyeOff,
-  Globe,
   Mail,
   ArrowRight,
   ArrowLeft,
   Check,
+  ChevronDown,
   ShieldCheck,
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { COUNTRIES, DEFAULT_COUNTRY, type Country } from "@/lib/countryCodes";
 
-type Mode = "signin" | "signup" | "forgot" | "reset";
+type Mode = "signin" | "signup" | "verify" | "forgot" | "reset";
 
 const headings: Record<Mode, { eyebrow: string; title: string; help?: string }> = {
   signin: { eyebrow: "Welcome back", title: "Sign in to your journal" },
   signup: { eyebrow: "Create account", title: "Start your journal" },
+  verify: {
+    eyebrow: "Verify phone",
+    title: "Enter your code",
+    help: "We sent a 6-digit code by text. Enter it below to finish creating your account.",
+  },
   forgot: {
     eyebrow: "Reset password",
     title: "Forgot your password?",
     help: "No worries. Enter your email and we'll send you a link to reset it.",
   },
   reset: { eyebrow: "New password", title: "Set a new password" },
+};
+
+/** Normalize a user-entered phone to E.164 (e.g. +14155552671). */
+const normalizePhone = (raw: string): string => {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/[^\d]/g, "");
+  return digits ? `+${digits}` : "";
+};
+
+const friendlyAuthError = (message: string): string => {
+  if (/email rate limit exceeded/i.test(message)) {
+    return "Too many sign-up attempts for this email. Wait about an hour, try a different email, or disable “Confirm email” in Supabase — phone OTP is your verification step.";
+  }
+  return message;
 };
 
 const labelClass = "font-cap text-xs tracking-wide text-fg-muted";
@@ -74,6 +107,76 @@ const PasswordInput = ({
       >
         {show ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
       </button>
+    </div>
+  );
+};
+
+// Country picker + local number. Submits a combined E.164 value via a hidden
+// "phone" input, so the user never types a country/area code by hand.
+const PhoneInput = () => {
+  const [open, setOpen] = useState(false);
+  const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
+  const [number, setNumber] = useState("");
+  const localDigits = number.replace(/\D/g, "");
+  const e164 = `+${country.dial}${localDigits}`;
+
+  return (
+    <div className={cn(inputWrap, "pl-2")}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[15px] text-fg-primary transition-colors hover:bg-surface-sunken"
+            aria-label="Select country code"
+          >
+            <span className="text-base leading-none">{country.flag}</span>
+            <span>+{country.dial}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-fg-muted" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px] p-0" align="start">
+          <Command
+            filter={(value, search) =>
+              value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+            }
+          >
+            <CommandInput placeholder="Search country or code…" />
+            <CommandList>
+              <CommandEmpty>No country found.</CommandEmpty>
+              <CommandGroup>
+                {COUNTRIES.map((c) => (
+                  <CommandItem
+                    key={c.iso}
+                    value={`${c.name} +${c.dial} ${c.iso}`}
+                    onSelect={() => {
+                      setCountry(c);
+                      setOpen(false);
+                    }}
+                    className="flex items-center gap-2.5"
+                  >
+                    <span className="text-base leading-none">{c.flag}</span>
+                    <span className="flex-1 truncate">{c.name}</span>
+                    <span className="text-fg-muted">+{c.dial}</span>
+                    {country.iso === c.iso && <Check className="h-4 w-4 text-gold-deep" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <span className="h-5 w-px flex-shrink-0 bg-border-strong" />
+      <input
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel-national"
+        required
+        placeholder="415 555 2671"
+        className={inputBase}
+        value={number}
+        onChange={(e) => setNumber(e.target.value)}
+      />
+      <input type="hidden" name="phone" value={e164} />
     </div>
   );
 };
@@ -137,7 +240,7 @@ const PasswordStrength = ({ value }: { value: string }) => {
 };
 
 const Auth = () => {
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, verifyPhone, resendPhoneOtp, user, loading } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [mode, setMode] = useState<Mode>(
@@ -145,14 +248,24 @@ const Auth = () => {
   );
   const [submitting, setSubmitting] = useState(false);
   const [password, setPassword] = useState("");
+  const [pendingPhone, setPendingPhone] = useState("");
+  // Set before sign-up so the "already signed in" redirect below doesn't fire
+  // before the user has verified their phone.
+  const [awaitingVerification, setAwaitingVerification] = useState(false);
 
   useEffect(() => {
-    if (!loading && user && mode !== "reset") {
+    if (
+      !loading &&
+      user &&
+      mode !== "reset" &&
+      mode !== "verify" &&
+      !awaitingVerification
+    ) {
       resolveOnboardingComplete(user).then((complete) => {
         navigate(complete ? "/dashboard" : "/onboarding");
       });
     }
-  }, [user, loading, navigate, mode]);
+  }, [user, loading, navigate, mode, awaitingVerification]);
 
   const onSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -165,19 +278,49 @@ const Auth = () => {
 
   const onSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setAwaitingVerification(true);
     setSubmitting(true);
     const fd = new FormData(e.currentTarget);
+    const phone = normalizePhone(fd.get("phone") as string);
     const { error } = await signUp(
       fd.get("email") as string,
       fd.get("password") as string,
       fd.get("fullName") as string,
+      phone,
     );
+    if (error) {
+      toast.error(friendlyAuthError(error.message));
+      setAwaitingVerification(false);
+      setSubmitting(false);
+      return;
+    }
+    // Account created — sign-up already texted the validation code.
+    setPendingPhone(phone);
+    setMode("verify");
+    toast.success("We texted you a verification code.");
+    setSubmitting(false);
+  };
+
+  const onVerify = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const fd = new FormData(e.currentTarget);
+    const { error } = await verifyPhone(pendingPhone, (fd.get("code") as string).trim());
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Account created successfully!");
+      toast.success("Phone verified!");
+      setAwaitingVerification(false);
       navigate("/onboarding");
     }
+    setSubmitting(false);
+  };
+
+  const onResendOtp = async () => {
+    if (!pendingPhone) return;
+    setSubmitting(true);
+    const { error } = await resendPhoneOtp(pendingPhone);
+    error ? toast.error(error.message) : toast.success("A new code is on its way.");
     setSubmitting(false);
   };
 
@@ -284,6 +427,9 @@ const Auth = () => {
                   <input name="email" type="email" required placeholder="you@example.com" className={inputBase} />
                 </div>
               </Field>
+              <Field label="Phone number">
+                <PhoneInput />
+              </Field>
               <Field label="Password">
                 <PasswordInput
                   name="password"
@@ -295,8 +441,58 @@ const Auth = () => {
                 />
               </Field>
               <PasswordStrength value={password} />
+              <p className="flex items-start gap-2 text-[13px] leading-snug text-fg-muted">
+                <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                Include your country code. We'll text a code to verify your number.
+              </p>
               <button type="submit" disabled={submitting} className={primaryBtn}>
                 {submitting ? "Creating account…" : "Create account"}
+              </button>
+            </form>
+          )}
+
+          {mode === "verify" && (
+            <form onSubmit={onVerify} className="flex flex-col gap-5">
+              <Field label="Verification code">
+                <div className={inputWrap}>
+                  <input
+                    name="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="\d*"
+                    maxLength={6}
+                    required
+                    placeholder="123456"
+                    className={cn(inputBase, "tracking-[0.4em]")}
+                  />
+                </div>
+              </Field>
+              {pendingPhone && (
+                <p className="text-[13px] text-fg-secondary">
+                  Code sent to <span className="font-semibold text-fg-primary">{pendingPhone}</span>.
+                </p>
+              )}
+              <button type="submit" disabled={submitting} className={primaryBtn}>
+                {submitting ? "Verifying…" : "Verify & continue"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onResendOtp}
+                disabled={submitting}
+                className="text-sm font-semibold text-gold-deep disabled:opacity-60"
+              >
+                Didn't get a code? Resend
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAwaitingVerification(false);
+                  setMode("signup");
+                }}
+                className="flex items-center justify-center gap-1.5 text-sm font-semibold text-fg-muted"
+              >
+                <ArrowLeft className="h-[15px] w-[15px]" /> Back
               </button>
             </form>
           )}
@@ -362,39 +558,25 @@ const Auth = () => {
             </form>
           )}
 
-          {/* Social + switch (sign in / sign up only) */}
+          {/* Switch (sign in / sign up only) */}
           {(mode === "signin" || mode === "signup") && (
-            <>
-              <div className="flex items-center gap-4">
-                <span className="h-px flex-1 bg-border-strong" />
-                <span className="font-cap text-xs text-fg-muted">or</span>
-                <span className="h-px flex-1 bg-border-strong" />
-              </div>
-              <button
-                type="button"
-                className="flex w-full items-center justify-center gap-2.5 rounded-full border border-border-strong bg-card py-3.5 text-[15px] font-semibold text-fg-primary transition-colors hover:bg-surface-sunken"
-              >
-                <Globe className="h-[18px] w-[18px] text-fg-secondary" />
-                Continue with Google
-              </button>
-              <div className="flex justify-center gap-1.5 text-sm text-fg-secondary">
-                {mode === "signin" ? (
-                  <>
-                    New to TradLyte?
-                    <button onClick={() => setMode("signup")} className="font-semibold text-gold-deep">
-                      Create an account
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?
-                    <button onClick={() => setMode("signin")} className="font-semibold text-gold-deep">
-                      Sign in
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
+            <div className="flex justify-center gap-1.5 text-sm text-fg-secondary">
+              {mode === "signin" ? (
+                <>
+                  New to TradLyte?
+                  <button onClick={() => setMode("signup")} className="font-semibold text-gold-deep">
+                    Create an account
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?
+                  <button onClick={() => setMode("signin")} className="font-semibold text-gold-deep">
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
