@@ -54,6 +54,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -116,6 +118,41 @@ const COOLDOWN_GAIN_THRESHOLD = 15;
 
 const popular = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "GOOG"];
 
+// "Markets at a glance" groups — one shown at a time, 3 symbols + a 3-month chart.
+const MARKET_CATEGORIES: Array<{ label: string; symbols: string[] }> = [
+  { label: "Indices", symbols: ["SPY", "QQQ", "DJIA"] },
+  { label: "Commodities", symbols: ["GLD", "SLV", "USO"] },
+  { label: "Treasuries", symbols: ["SHY", "IEF", "TLT"] },
+];
+const MARKET_SERIES_COLORS = ["hsl(var(--accent-deep))", "hsl(var(--positive))", "hsl(var(--negative))"];
+
+/** Merge per-symbol price series into one chart dataset, each rebased to % from start. */
+function buildMarketChart(seriesBySymbol: Record<string, PricePoint[]>): Array<Record<string, number | string>> {
+  const normalized: Record<string, Map<string, number>> = {};
+  const dateSet = new Set<string>();
+  for (const [sym, series] of Object.entries(seriesBySymbol)) {
+    const base = series[0]?.price;
+    const m = new Map<string, number>();
+    if (base) {
+      for (const p of series) {
+        const day = p.date.slice(0, 10);
+        m.set(day, (p.price / base - 1) * 100);
+        dateSet.add(day);
+      }
+    }
+    normalized[sym] = m;
+  }
+  const days = [...dateSet].sort();
+  return days.map((day) => {
+    const row: Record<string, number | string> = { date: day };
+    for (const sym of Object.keys(seriesBySymbol)) {
+      const v = normalized[sym].get(day);
+      if (v != null) row[sym] = v;
+    }
+    return row;
+  });
+}
+
 type HoldingRow = {
   id: string;
   symbol: string;
@@ -127,6 +164,8 @@ type HoldingRow = {
   gain: number;
   momentum: string;
   score: number;
+  /** When the holding was added (user_portfolio.created_at) — anchors the value curve. */
+  purchaseDate: string | null;
 };
 
 // Momentum is purely a function of recent gain vs. entry — labelled honestly, not as buy/sell advice.
@@ -157,6 +196,9 @@ const UserDashboard = () => {
   const [holdings, setHoldings] = useState<HoldingRow[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
   const [markets, setMarkets] = useState<DashboardIndex[]>([]);
+  const [marketCat, setMarketCat] = useState(0);
+  const [marketChart, setMarketChart] = useState<Array<Record<string, number | string>>>([]);
+  const [marketChartLoading, setMarketChartLoading] = useState(true);
   const [picks, setPicks] = useState<TopPickRow[]>([]);
   const [picksLoading, setPicksLoading] = useState(true);
   const [pickCount, setPickCount] = useState(0);
@@ -211,6 +253,16 @@ const UserDashboard = () => {
   const portfolioValue = displayHoldings.reduce((sum, h) => sum + h.current * h.qty, 0);
   const portfolioCost = displayHoldings.reduce((sum, h) => sum + h.entry * h.qty, 0);
   const portfolioGainPct = portfolioCost > 0 ? ((portfolioValue - portfolioCost) / portfolioCost) * 100 : 0;
+
+  // Anchor the value curve to "today" at the live portfolio value, so a holding
+  // added today (no daily bar yet) still shows its starting point.
+  const portfolioCurve = useMemo(() => {
+    if (holdings.length === 0 || portfolioValue <= 0) return curve;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const lastKey = curve.length ? curve[curve.length - 1].date.slice(0, 10) : null;
+    if (lastKey === todayKey) return curve;
+    return [...curve, { date: new Date().toISOString(), value: portfolioValue }];
+  }, [curve, holdings.length, portfolioValue]);
 
   // What's doing great / what's not — derived from real holdings.
   const { top: topHolding, bottom: bottomHolding } = splitWinnersLosers(displayHoldings);
@@ -282,6 +334,7 @@ const UserDashboard = () => {
               gain,
               momentum: momentumLabel(score),
               score,
+              purchaseDate: (item.created_at as string | null) ?? null,
             };
           }),
         );
@@ -301,6 +354,36 @@ const UserDashboard = () => {
     fetchDashboardIndices(controller.signal).then(setMarkets);
     return () => controller.abort();
   }, []);
+
+  // 3-month trend chart for the active market category (refetched on switch).
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+    const load = async () => {
+      setMarketChartLoading(true);
+      try {
+        const symbols = MARKET_CATEGORIES[marketCat].symbols;
+        const series = await Promise.all(
+          symbols.map(async (s) => [s, await fetchOhlcvSeries(s, "6M", controller.signal)] as const),
+        );
+        if (cancelled) return;
+        const seriesBySymbol: Record<string, PricePoint[]> = {};
+        // Use the last ~3 months (≈65 trading days) of each series.
+        for (const [s, pts] of series) seriesBySymbol[s] = pts.slice(-65);
+        setMarketChart(buildMarketChart(seriesBySymbol));
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        if (!cancelled) console.error("Market chart load failed:", e);
+      } finally {
+        if (!cancelled) setMarketChartLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [marketCat]);
 
   // Journal entries (reflections + insights) and the user's stated purpose.
   useEffect(() => {
@@ -609,34 +692,80 @@ const UserDashboard = () => {
             <h2 className="font-serif text-[22px] font-medium text-fg-primary">Markets at a glance</h2>
             <span className="font-cap text-xs text-fg-muted">Live · delayed 15 min</span>
           </div>
-          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border-subtle bg-card md:grid-cols-3">
-            {(markets.length ? markets : [
-              { name: "S&P 500", value: "…", change: "…", up: true },
-              { name: "NASDAQ", value: "…", change: "…", up: true },
-              { name: "Dow Jones", value: "…", change: "…", up: true },
-              { name: "Gold", value: "…", change: "…", up: true },
-              { name: "Silver", value: "…", change: "…", up: true },
-              { name: "Crude Oil", value: "…", change: "…", up: true },
-              { name: "US 1-3Y", value: "…", change: "…", up: true },
-              { name: "US 7-10Y", value: "…", change: "…", up: true },
-              { name: "US 20Y+", value: "…", change: "…", up: true },
-            ]).map((m, i) => (
-              <div
-                key={m.name}
-                className={cn(
-                  "flex flex-col gap-2 px-5 py-5",
-                  i % 3 !== 0 && "md:border-l md:border-border-subtle",
-                  i >= 3 && "md:border-t md:border-border-subtle",
-                )}
-              >
-                <span className="font-cap text-[13px] text-fg-muted">{m.name}</span>
-                <span className="text-[22px] font-semibold text-fg-primary">{m.value}</span>
-                <span className={cn("flex items-center gap-1.5 font-cap text-[13px] font-medium", m.up ? "text-positive" : "text-negative")}>
-                  {m.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                  {m.change}
+          <div className="rounded-2xl border border-border-subtle bg-card p-5 md:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMarketCat((c) => (c + MARKET_CATEGORIES.length - 1) % MARKET_CATEGORIES.length)}
+                  aria-label="Previous market group"
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-border-subtle text-fg-secondary transition-colors hover:border-border-strong hover:text-fg-primary"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="min-w-[96px] text-center font-cap text-[13px] font-semibold uppercase tracking-wide text-gold-deep">
+                  {MARKET_CATEGORIES[marketCat].label}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setMarketCat((c) => (c + 1) % MARKET_CATEGORIES.length)}
+                  aria-label="Next market group"
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-border-subtle text-fg-secondary transition-colors hover:border-border-strong hover:text-fg-primary"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            ))}
+              <span className="font-cap text-[11px] text-fg-muted">Last 3 months</span>
+            </div>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:items-center">
+              {/* 3 symbols */}
+              <div className="flex flex-col divide-y divide-border-subtle">
+                {MARKET_CATEGORIES[marketCat].symbols.map((sym, i) => {
+                  const m = markets.find((x) => x.symbol === sym);
+                  return (
+                    <div key={sym} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: MARKET_SERIES_COLORS[i] }} />
+                        <span className="font-cap text-[13px] text-fg-secondary">{m?.name ?? sym}</span>
+                      </span>
+                      <span className="flex items-baseline gap-3">
+                        <span className="text-sm font-semibold text-fg-primary">{m?.value ?? "…"}</span>
+                        <span className={cn("w-[58px] text-right font-cap text-[12px] font-medium", m?.up ?? true ? "text-positive" : "text-negative")}>
+                          {m?.change ?? "…"}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* 3-month trend */}
+              <div className="h-[120px] w-full">
+                {marketChartLoading && marketChart.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-fg-muted" />
+                  </div>
+                ) : marketChart.length === 0 ? (
+                  <div className="flex h-full items-center justify-center font-cap text-xs text-fg-muted">Chart unavailable</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={marketChart} margin={{ top: 6, right: 6, bottom: 0, left: 6 }}>
+                      <YAxis hide domain={["auto", "auto"]} />
+                      {MARKET_CATEGORIES[marketCat].symbols.map((sym, i) => (
+                        <Line
+                          key={sym}
+                          type="monotone"
+                          dataKey={sym}
+                          stroke={MARKET_SERIES_COLORS[i]}
+                          strokeWidth={1.5}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -678,7 +807,7 @@ const UserDashboard = () => {
                 </div>
               </div>
               <p className="mt-1 font-cap text-[11px] text-fg-muted">
-                Value of your current holdings at market over time · delayed 15 min
+                Your portfolio's value over time — from when you added each holding
               </p>
               <div className="mt-5 h-[240px] w-full">
                 {holdings.length === 0 ? (
@@ -686,17 +815,17 @@ const UserDashboard = () => {
                     <p className="text-sm font-medium text-fg-secondary">No holdings to chart yet</p>
                     <p className="font-cap text-xs text-fg-muted">Add holdings to see your portfolio's path over time.</p>
                   </div>
-                ) : curveLoading && curve.length === 0 ? (
+                ) : curveLoading && portfolioCurve.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <Loader2 className="h-5 w-5 animate-spin text-fg-muted" />
                   </div>
-                ) : curve.length === 0 ? (
+                ) : portfolioCurve.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <p className="font-cap text-xs text-fg-muted">Price history unavailable for this range.</p>
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={curve} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                    <AreaChart data={portfolioCurve} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                       <defs>
                         <linearGradient id="grow" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.34} />

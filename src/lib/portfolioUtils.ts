@@ -6,17 +6,18 @@ export interface PortfolioCurvePoint {
 }
 
 /**
- * Build a portfolio market-value curve over time from per-symbol price series.
+ * Build the user's portfolio value curve over time — reflecting what they
+ * actually held, not what today's basket would have been worth historically.
  *
- * Each symbol is valued at the user's *current* quantity across the whole window,
- * so the curve answers "what would this basket have been worth" — an honest
- * representation when only current holdings (not transaction history) are known.
- * Each symbol's last seen price is forward-filled across the unified date axis so
- * a missing bar for one symbol doesn't drop the whole portfolio's value to zero.
+ * Each holding only contributes to the value from its `purchaseDate` (the day it
+ * was added) forward; before that it counts as $0. Dates with no holding yet are
+ * dropped, so the line starts at the first purchase — a stock added today yields
+ * just a starting point, and the trend builds as days accrue. Each symbol's last
+ * seen price is forward-filled so a missing bar doesn't zero the whole value.
  */
 export function buildPortfolioCurve(
   seriesBySymbol: Record<string, PricePoint[]>,
-  holdings: Array<{ symbol: string; qty: number }>,
+  holdings: Array<{ symbol: string; qty: number; purchaseDate?: string | null }>,
 ): PortfolioCurvePoint[] {
   const priceMaps: Record<string, Map<string, number>> = {};
   const dateSet = new Set<string>();
@@ -32,21 +33,28 @@ export function buildPortfolioCurve(
   const dates = [...dateSet].sort();
   if (dates.length === 0) return [];
 
+  // Compare by calendar day (YYYY-MM-DD); timestamps sort the same lexicographically.
+  const dayOf = (iso: string) => iso.slice(0, 10);
+
   const lastPrice: Record<string, number> = {};
   const result: PortfolioCurvePoint[] = [];
   for (const date of dates) {
+    const day = dayOf(date);
     let value = 0;
-    let anyPriced = false;
+    let anyActive = false;
     for (const h of holdings) {
       const px = priceMaps[h.symbol]?.get(date);
       if (px != null) lastPrice[h.symbol] = px;
+      // A holding only counts on/after the day it was added.
+      const held = !h.purchaseDate || dayOf(h.purchaseDate) <= day;
+      if (!held) continue;
       const use = lastPrice[h.symbol];
       if (use != null) {
         value += use * h.qty;
-        anyPriced = true;
+        anyActive = true;
       }
     }
-    if (anyPriced) result.push({ date, value });
+    if (anyActive) result.push({ date, value });
   }
   return result;
 }
