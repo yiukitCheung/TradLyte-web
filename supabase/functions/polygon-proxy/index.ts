@@ -9,11 +9,12 @@
 
 const POLYGON_BASE = "https://api.polygon.io";
 
-/** Only Polygon aggregate endpoints are allowed. */
+/** Only Polygon aggregate + ticker-news endpoints are allowed. */
 function isAllowedPath(path: string): boolean {
   if (!path.startsWith("/") || path.includes("://") || path.startsWith("//") || path.includes("..")) return false;
   // /v2/aggs/ticker/{T}/range/1/minute/{from}/{to}  and  /v2/aggs/ticker/{T}/prev
-  return path.startsWith("/v2/aggs/");
+  // /v2/reference/news?ticker={T}
+  return path.startsWith("/v2/aggs/") || path.startsWith("/v2/reference/news");
 }
 
 function toHeaderByteString(value: string): string {

@@ -8,6 +8,9 @@ import About from "./pages/About";
 import Auth from "./pages/Auth";
 import UserDashboard from "./pages/UserDashboard";
 import StrategyBuilder from "./pages/StrategyBuilder";
+import StrategyLibrary from "./pages/StrategyLibrary";
+import Watchlist from "./pages/Watchlist";
+import AuthCallback from "./pages/AuthCallback";
 import Goals from "./pages/Goals";
 import Journal from "./pages/Journal";
 import StockDetail from "./pages/StockDetail";
@@ -30,9 +33,12 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/about" element={<About />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/auth-callback" element={<AuthCallback />} />
           <Route path="/onboarding" element={<PurposeOnboarding />} />
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/strategy-builder" element={<StrategyBuilder />} />
+          <Route path="/strategy-library" element={<StrategyLibrary />} />
+          <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/journal" element={<Journal />} />
           <Route path="/stock/:symbol" element={<StockDetail />} />

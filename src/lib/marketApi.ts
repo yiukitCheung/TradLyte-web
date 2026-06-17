@@ -43,10 +43,20 @@ export interface DashboardIndex {
   up: boolean;
 }
 
-// Trailing-return windows the serving API actually computes (trading days: 1d / 5d / 21d
-// ≈ day / week / month). 7/30/90 are NOT computed upstream, so we use these.
-export type PickReturnHorizon = "1d" | "5d" | "21d";
-export const PICK_HORIZON_TRADING_DAYS: Record<PickReturnHorizon, number> = { "1d": 1, "5d": 5, "21d": 21 };
+// Pick "vintage": how long ago the cohort was picked. The list swaps to the scan
+// from ~N days before the latest scan, and each row's return is its realized
+// since-pick return_to_date (pick date → today). "latest" = today's fresh picks.
+export type PickReturnHorizon = "latest" | "1w" | "1m";
+export const PICK_VINTAGE_OFFSET_DAYS: Record<Exclude<PickReturnHorizon, "latest">, number> = {
+  "1w": 7,
+  "1m": 30,
+};
+
+function addCalendarDays(iso: string, delta: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
 
 export interface TopPickRow {
   symbol: string;
@@ -90,16 +100,10 @@ export function formatScanDateShort(iso: string | null): string {
   }
 }
 
-export function pickReturnHorizonLabel(horizon: PickReturnHorizon, _scanDate: string | null): string {
-  // returnPct is the symbol's trailing return over the selected window.
-  switch (horizon) {
-    case "1d":
-      return "past day";
-    case "5d":
-      return "past week";
-    case "21d":
-      return "past month";
-  }
+export function pickReturnHorizonLabel(_horizon: PickReturnHorizon, scanDate: string | null): string {
+  // returnPct is the realized return since the pick date (return_to_date).
+  const when = formatScanDateShort(scanDate);
+  return when ? `since pick · ${when}` : "since pick";
 }
 
 interface PickReturnItem {
@@ -125,39 +129,6 @@ async function fetchVegasReturns(
   if (!res.ok) return [];
   const json = (await res.json()) as { data?: PickReturnItem[] };
   return (json.data ?? []).filter((row) => isVegasStrategy(row.strategy_name));
-}
-
-/**
- * Trailing N-trading-day return per symbol via `/market/returns/{symbol}`.
- * Batched to bound the fan-out. The response keys returns as `"{days}d"` (e.g. "21d").
- */
-async function fetchTrailingReturns(
-  symbols: string[],
-  days: number,
-  signal?: AbortSignal,
-): Promise<Map<string, number | null>> {
-  const map = new Map<string, number | null>();
-  const key = `${days}d`;
-  const batchSize = 10;
-  for (let i = 0; i < symbols.length; i += batchSize) {
-    const batch = symbols.slice(i, i + batchSize);
-    await Promise.all(
-      batch.map(async (symbol) => {
-        try {
-          const res = await marketGatewayFetch(`/market/returns/${symbol}`, {
-            searchParams: { horizons: String(days) },
-            signal,
-          });
-          if (!res.ok) return;
-          const json = (await res.json()) as { data?: { returns?: Record<string, number | null> } };
-          map.set(symbol, toSafeNumber(json.data?.returns?.[key] ?? json.data?.returns?.[String(days)]));
-        } catch {
-          /* leave unset → null */
-        }
-      }),
-    );
-  }
-  return map;
 }
 
 async function fetchSymbolMeta(
@@ -192,7 +163,12 @@ export const DASHBOARD_INDEX_SPECS: Array<{ name: string; symbol: string; isCurr
   { name: "NASDAQ", symbol: "QQQ" },
   { name: "Dow Jones", symbol: "DJIA" },
   { name: "Gold", symbol: "GLD", isCurrency: true },
+  { name: "Silver", symbol: "SLV", isCurrency: true },
   { name: "Crude Oil", symbol: "USO", isCurrency: true },
+  // US Treasury ETFs (price proxies for short / mid / long yields).
+  { name: "US 1-3Y", symbol: "SHY", isCurrency: true },
+  { name: "US 7-10Y", symbol: "IEF", isCurrency: true },
+  { name: "US 20Y+", symbol: "TLT", isCurrency: true },
 ];
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);
@@ -359,7 +335,7 @@ export async function fetchDashboardPicks(
     signal?: AbortSignal;
   } = {},
 ): Promise<DashboardPicksResult> {
-  const { limit = 10, industry = null, horizon = "21d", signal } = options;
+  const { limit = 10, industry = null, horizon = "latest", signal } = options;
   const searchParams: Record<string, string> = { limit: "200" };
   if (industry) searchParams.industry = industry;
 
@@ -381,8 +357,30 @@ export async function fetchDashboardPicks(
 
   if (!scanDate) return { scanDate: null, picks: [], industries: [], totalCount: 0 };
 
-  const vegasRows = await fetchVegasReturns(scanDate, industry, signal);
-  if (vegasRows.length === 0) return { scanDate, picks: [], industries: [], totalCount: 0 };
+  // Resolve which scan cohort to show. "latest" = today's picks (since-pick return ~0
+  // because they're fresh). A vintage ages back N days from the latest scan and probes
+  // earlier days until it lands on a scan that actually ran, so its picks have a
+  // realized return_to_date (pick date → today). Scans aren't daily, hence the probe.
+  let cohortDate = scanDate;
+  let vegasRows: PickReturnItem[];
+  if (horizon === "latest") {
+    vegasRows = await fetchVegasReturns(scanDate, industry, signal);
+  } else {
+    let probe = addCalendarDays(scanDate, -PICK_VINTAGE_OFFSET_DAYS[horizon]);
+    let found: PickReturnItem[] = [];
+    for (let i = 0; i < 8; i++) {
+      const rows = await fetchVegasReturns(probe, industry, signal);
+      if (rows.length > 0) {
+        found = rows;
+        cohortDate = probe;
+        break;
+      }
+      probe = addCalendarDays(probe, -1);
+    }
+    vegasRows = found;
+  }
+
+  if (vegasRows.length === 0) return { scanDate: cohortDate, picks: [], industries: [], totalCount: 0 };
 
   const vegasReturns = vegasRows.sort(
     (a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER),
@@ -400,31 +398,30 @@ export async function fetchDashboardPicks(
     ),
   ].sort((a, b) => formatIndustryLabel(a).localeCompare(formatIndustryLabel(b)));
 
-  // Trailing return over the selected window, per displayed pick symbol.
-  const trailing = await fetchTrailingReturns(
-    displayRows.map((r) => r.symbol),
-    PICK_HORIZON_TRADING_DAYS[horizon],
-    signal,
-  );
-
   const picks: TopPickRow[] = displayRows.map((row, idx) => {
     const meta = metaMap.get(row.symbol);
     const close = toSafeNumber(row.close_now);
-    const returnPct = trailing.get(row.symbol) ?? null;
+    const pickPrice = toSafeNumber(row.pick_price);
+    // Realized return since the pick. Prefer the API's return_to_date; fall back to
+    // computing it from pick price → current close so a missing field never reads as 0.
+    let returnPct = toSafeNumber(row.return_to_date);
+    if (returnPct === null && pickPrice && close !== null) {
+      returnPct = (close - pickPrice) / pickPrice;
+    }
     return {
       symbol: row.symbol,
       name: meta?.name ?? row.symbol,
       sector: formatIndustryLabel(meta?.industry ?? "—"),
       close,
-      pickPrice: toSafeNumber(row.pick_price),
+      pickPrice,
       returnPct,
       rank: row.rank ?? idx + 1,
       up: returnPct === null || returnPct >= 0,
-      scanDate: row.scan_date ?? scanDate,
+      scanDate: row.scan_date ?? cohortDate,
     };
   });
 
-  return { scanDate, picks, industries, totalCount: vegasReturns.length };
+  return { scanDate: cohortDate, picks, industries, totalCount: vegasReturns.length };
 }
 
 /** @deprecated Use fetchDashboardPicks */

@@ -23,7 +23,6 @@ import {
   Compass,
   Quote,
   Feather,
-  Sparkles,
   Loader2,
   Newspaper,
   ExternalLink,
@@ -33,6 +32,7 @@ import {
   CircleDollarSign,
   Frown,
   Trash2,
+  Bookmark,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -75,7 +75,6 @@ import {
   formatScanDateShort,
   pickReturnHorizonLabel,
 } from "@/lib/marketApi";
-import { ANALYST_SYSTEM_PROMPT, requestAiChat } from "@/lib/aiChat";
 import {
   buildPortfolioCurve,
   splitWinnersLosers,
@@ -94,10 +93,12 @@ import {
 import { format, parseISO } from "date-fns";
 
 // Trailing-return window for each pick (via /market/returns — supported horizons only).
+// Pick vintage: how long ago the cohort was picked. The list swaps to that scan;
+// the return shown is each pick's realized return since it was picked.
 const PICK_HORIZONS: Array<{ id: PickReturnHorizon; label: string }> = [
-  { id: "1d", label: "1D" },
-  { id: "5d", label: "1W" },
-  { id: "21d", label: "1M" },
+  { id: "latest", label: "Today" },
+  { id: "1w", label: "1W ago" },
+  { id: "1m", label: "1M ago" },
 ];
 
 // Performance-chart ranges, each backed by a real OHLCV window (see mapPeriodToOhlcvParams).
@@ -160,7 +161,8 @@ const UserDashboard = () => {
   const [picksLoading, setPicksLoading] = useState(true);
   const [pickCount, setPickCount] = useState(0);
   const [pickScanDate, setPickScanDate] = useState<string | null>(null);
-  const [pickHorizon, setPickHorizon] = useState<PickReturnHorizon>("21d");
+  const [pickHorizon, setPickHorizon] = useState<PickReturnHorizon>("latest");
+  const [pickPage, setPickPage] = useState(0);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const [industries, setIndustries] = useState<string[]>([]);
   const [sectorOpen, setSectorOpen] = useState(false);
@@ -229,10 +231,13 @@ const UserDashboard = () => {
     tag: e.tags?.[0] ?? e.mood ?? null,
   }));
 
-  const featuredPick = picks[0] ?? null;
-  const listPicks = picks.slice(1);
-  const [pickAnalysis, setPickAnalysis] = useState<string | null>(null);
-  const [pickAnalysisLoading, setPickAnalysisLoading] = useState(false);
+  // Paginate the picks, 5 per page. Page 0 shows the #1 as a featured card + 4 rows.
+  const PICKS_PER_PAGE = 5;
+  const totalPickPages = Math.max(1, Math.ceil(picks.length / PICKS_PER_PAGE));
+  const pageStart = pickPage * PICKS_PER_PAGE;
+  const pagePicks = picks.slice(pageStart, pageStart + PICKS_PER_PAGE);
+  const featuredPick = pickPage === 0 ? pagePicks[0] ?? null : null;
+  const listPicks = pickPage === 0 ? pagePicks.slice(1) : pagePicks;
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
@@ -410,7 +415,7 @@ const UserDashboard = () => {
       setPicksLoading(true);
       try {
         const result = await fetchDashboardPicks({
-          limit: 10,
+          limit: 50,
           industry: selectedIndustry,
           horizon: pickHorizon,
           signal: controller.signal,
@@ -430,59 +435,10 @@ const UserDashboard = () => {
     return () => controller.abort();
   }, [pickHorizon, selectedIndustry]);
 
+  // Reset to the first page whenever the pick cohort/filter changes.
   useEffect(() => {
-    if (!user || !featuredPick) {
-      setPickAnalysis(null);
-      return;
-    }
-
-    let cancelled = false;
-    const loadAnalysis = async () => {
-      setPickAnalysisLoading(true);
-      setPickAnalysis(null);
-      try {
-        const context = [
-          `Symbol: ${featuredPick.symbol}`,
-          featuredPick.name !== featuredPick.symbol ? `Company: ${featuredPick.name}` : null,
-          featuredPick.sector !== "—" ? `Sector: ${featuredPick.sector}` : null,
-          featuredPick.close != null ? `Price: $${featuredPick.close.toFixed(2)}` : null,
-          featuredPick.returnPct != null
-            ? `Return ${pickReturnHorizonLabel(pickHorizon, pickScanDate ?? featuredPick.scanDate)}: ${formatPickReturn(featuredPick.returnPct)}`
-            : null,
-          pickScanDate ? `Scan date: ${pickScanDate}` : null,
-          `Rank: ${featuredPick.rank} of today's Vegas Channel scan`,
-        ]
-          .filter(Boolean)
-          .join("\n");
-
-        const text = await requestAiChat({
-          system: ANALYST_SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `Summarize why this stock might interest a purpose-driven investor as today's featured pick. Context:\n${context}`,
-                },
-              ],
-            },
-          ],
-        });
-        if (!cancelled) setPickAnalysis(text);
-      } catch (e) {
-        console.error("Pick AI analysis failed:", e);
-        if (!cancelled) setPickAnalysis(null);
-      } finally {
-        if (!cancelled) setPickAnalysisLoading(false);
-      }
-    };
-
-    loadAnalysis();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, featuredPick, pickHorizon, pickScanDate]);
+    setPickPage(0);
+  }, [pickHorizon, selectedIndustry]);
 
   useEffect(() => {
     if (!sectorOpen) return;
@@ -497,7 +453,7 @@ const UserDashboard = () => {
 
   const resetPickFilters = () => {
     setSelectedIndustry(null);
-    setPickHorizon("21d");
+    setPickHorizon("latest");
     setSectorOpen(false);
   };
 
@@ -591,9 +547,20 @@ const UserDashboard = () => {
       <main className="mx-auto w-full max-w-[1440px] flex-1">
         {/* Hero */}
         <section className="px-6 pb-10 pt-14 md:px-12">
-          <p className="font-cap text-sm uppercase tracking-[0.14em] text-gold-deep">
-            Purpose-driven investing
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <p className="font-cap text-sm uppercase tracking-[0.14em] text-gold-deep">
+              Purpose-driven investing
+            </p>
+            <Link
+              to="/watchlist"
+              aria-label="Open your watchlist"
+              title="Watchlist"
+              className="flex flex-shrink-0 items-center gap-2 rounded-full border border-border-strong bg-card px-4 py-2 font-cap text-[13px] font-medium text-fg-primary transition-colors hover:border-ink"
+            >
+              <Bookmark className="h-4 w-4 text-gold-deep" />
+              <span className="hidden sm:inline">Watchlist</span>
+            </Link>
+          </div>
           <h1 className="mt-3.5 font-serif text-[40px] font-medium leading-[1.05] text-fg-primary md:text-[52px]">
             Good morning, {firstName}.
           </h1>
@@ -642,17 +609,25 @@ const UserDashboard = () => {
             <h2 className="font-serif text-[22px] font-medium text-fg-primary">Markets at a glance</h2>
             <span className="font-cap text-xs text-fg-muted">Live · delayed 15 min</span>
           </div>
-          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border-subtle bg-card md:grid-cols-5">
+          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border-subtle bg-card md:grid-cols-3">
             {(markets.length ? markets : [
               { name: "S&P 500", value: "…", change: "…", up: true },
               { name: "NASDAQ", value: "…", change: "…", up: true },
               { name: "Dow Jones", value: "…", change: "…", up: true },
               { name: "Gold", value: "…", change: "…", up: true },
+              { name: "Silver", value: "…", change: "…", up: true },
               { name: "Crude Oil", value: "…", change: "…", up: true },
+              { name: "US 1-3Y", value: "…", change: "…", up: true },
+              { name: "US 7-10Y", value: "…", change: "…", up: true },
+              { name: "US 20Y+", value: "…", change: "…", up: true },
             ]).map((m, i) => (
               <div
                 key={m.name}
-                className={cn("flex flex-col gap-2 px-5 py-5", i > 0 && "md:border-l md:border-border-subtle")}
+                className={cn(
+                  "flex flex-col gap-2 px-5 py-5",
+                  i % 3 !== 0 && "md:border-l md:border-border-subtle",
+                  i >= 3 && "md:border-t md:border-border-subtle",
+                )}
               >
                 <span className="font-cap text-[13px] text-fg-muted">{m.name}</span>
                 <span className="text-[22px] font-semibold text-fg-primary">{m.value}</span>
@@ -1010,7 +985,7 @@ const UserDashboard = () => {
                   ))}
                 </div>
               </div>
-              {featuredPick ? (
+              {featuredPick && (
               <div className="flex flex-col gap-3.5 px-6 py-5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 font-cap text-[11px] font-semibold text-fg-primary"><Star className="h-3 w-3" /> Pick of the day</span>
@@ -1033,31 +1008,18 @@ const UserDashboard = () => {
                     </div>
                   </div>
                 </div>
-                {(pickAnalysisLoading || pickAnalysis) && (
-                  <div className="rounded-xl bg-surface-sunken/80 px-4 py-3.5">
-                    <div className="mb-2 flex items-center gap-2 font-cap text-[10px] font-semibold uppercase tracking-wide text-gold-deep">
-                      {pickAnalysisLoading ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin" /> TradLyte AI
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3 w-3" /> TradLyte AI
-                        </>
-                      )}
-                    </div>
-                    <p className="text-[13px] leading-relaxed text-fg-secondary">
-                      {pickAnalysisLoading ? "Reading today's pick…" : pickAnalysis}
-                    </p>
-                  </div>
-                )}
                 <button onClick={() => navigate(`/stock/${featuredPick.symbol}`)} className="flex items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-white">
                   Analyze {featuredPick.symbol} <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
-              ) : !picksLoading ? (
-                <p className="px-6 py-5 font-cap text-sm text-fg-muted">No picks available right now.</p>
-              ) : null}
+              )}
+              {picks.length === 0 && !picksLoading && (
+                <p className="px-6 py-5 font-cap text-sm text-fg-muted">
+                  {pickHorizon === "latest"
+                    ? "No picks available right now."
+                    : "No scan ran that far back yet — pick history is still building."}
+                </p>
+              )}
               {listPicks.map((p) => (
                 <button
                   key={p.symbol}
@@ -1083,6 +1045,29 @@ const UserDashboard = () => {
                   <ChevronRight className="h-4 w-4 text-fg-muted" />
                 </button>
               ))}
+              {picks.length > 0 && totalPickPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border-subtle px-6 py-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setPickPage((p) => Math.max(0, p - 1))}
+                    disabled={pickPage === 0}
+                    className="flex items-center gap-1 font-cap text-[13px] font-medium text-fg-secondary transition-colors hover:text-fg-primary disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Prev
+                  </button>
+                  <span className="font-cap text-[12px] text-fg-muted">
+                    Page {pickPage + 1} of {totalPickPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPickPage((p) => Math.min(totalPickPages - 1, p + 1))}
+                    disabled={pickPage >= totalPickPages - 1}
+                    className="flex items-center gap-1 font-cap text-[13px] font-medium text-fg-secondary transition-colors hover:text-fg-primary disabled:opacity-40"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Purpose card */}

@@ -242,6 +242,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_strategies: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          draft: Json
+          id: string
+          name: string
+          result: Json | null
+          symbol: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          draft: Json
+          id?: string
+          name: string
+          result?: Json | null
+          symbol?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          draft?: Json
+          id?: string
+          name?: string
+          result?: Json | null
+          symbol?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -259,6 +292,27 @@ export type Database = {
           created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_watchlist: {
+        Row: {
+          created_at: string | null
+          id: string
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          symbol?: string
           user_id?: string
         }
         Relationships: []

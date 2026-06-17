@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { ArrowRight, Check, Play, RotateCcw, Activity, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Play, RotateCcw, Activity, Loader2, Bookmark, Library } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { saveStrategy } from "@/lib/savedStrategies";
 import {
   ResponsiveContainer,
   LineChart,
@@ -72,6 +81,13 @@ const StrategyBuilder = () => {
   const [isBacktesting, setIsBacktesting] = useState(false);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const resultsRef = useRef<HTMLElement>(null);
+  const location = useLocation();
+
+  // Save-strategy dialog (persists the current draft + result to user_strategies).
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveDesc, setSaveDesc] = useState("");
+  const [savingStrategy, setSavingStrategy] = useState(false);
 
   const perfData = useMemo(
     () =>
@@ -170,6 +186,30 @@ const StrategyBuilder = () => {
     toast.info("Strategy reset");
   };
 
+  const handleSaveStrategy = async () => {
+    if (!user) return;
+    const name = saveName.trim();
+    if (!name) return toast.error("Give your strategy a name");
+    setSavingStrategy(true);
+    try {
+      await saveStrategy(user.id, {
+        name,
+        description: saveDesc.trim() || null,
+        symbol: backtestSymbol.trim().toUpperCase() || null,
+        draft: { ...draft, strategyName: name },
+        result: backtestResult,
+      });
+      toast.success("Strategy saved to your library");
+      setSaveOpen(false);
+      setSaveName("");
+      setSaveDesc("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save strategy");
+    } finally {
+      setSavingStrategy(false);
+    }
+  };
+
   const runBacktest = async (draftOverride?: StrategyDraft, recipeOverride?: BacktestRecipe) => {
     const cap = Number(initialCapital);
     if (!Number.isFinite(cap) || cap <= 0) {
@@ -229,6 +269,20 @@ const StrategyBuilder = () => {
     }
   };
 
+  // Loaded from the library: preload its draft (and symbol) into the Lab to re-run.
+  useEffect(() => {
+    const incoming = location.state as { draft?: StrategyDraft; symbol?: string } | null;
+    if (incoming?.draft) {
+      setDraft(incoming.draft);
+      setActiveRecipe(null);
+      if (incoming.symbol) setBacktestSymbol(incoming.symbol);
+      setStep(4);
+      // Clear nav state so a refresh/back doesn't re-trigger.
+      navigate("/strategy-builder", { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (step === 4) {
       resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -267,6 +321,12 @@ const StrategyBuilder = () => {
           <p className="mt-6 max-w-[560px] text-[18px] leading-relaxed text-fg-secondary">
             Three simple choices — how you read the market, when you buy, and when you sell. Then replay it against real history.
           </p>
+          <Link
+            to="/strategy-library"
+            className="mt-6 inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-5 py-2.5 font-cap text-sm font-medium text-fg-primary transition-colors hover:border-ink"
+          >
+            <Library className="h-4 w-4 text-gold-deep" /> Your saved strategies <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </section>
 
         {/* Progress */}
@@ -451,6 +511,18 @@ const StrategyBuilder = () => {
                     </>
                   )}
                 </button>
+                {backtestResult && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaveName(activeRecipe?.title ?? draft.strategyName ?? "");
+                      setSaveOpen(true);
+                    }}
+                    className="flex items-center gap-2 rounded-full border border-border-strong px-6 py-3 text-sm font-semibold text-fg-primary transition-colors hover:border-ink"
+                  >
+                    <Bookmark className="h-4 w-4" /> Save to library
+                  </button>
+                )}
                 <div className="flex gap-6">
                   <button type="button" onClick={() => setStep(3)} className="font-cap text-sm text-fg-muted hover:text-fg-primary">
                     ← Edit strategy
@@ -551,6 +623,49 @@ const StrategyBuilder = () => {
           </section>
         )}
       </main>
+
+      {/* Save-strategy dialog */}
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save to your library</DialogTitle>
+            <DialogDescription>Name this strategy so you can re-run or tweak it later.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-fg-primary">Name</label>
+              <input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="My golden-cross swing"
+                className="w-full rounded-md border border-border-strong bg-card px-3.5 py-2.5 text-sm outline-none focus:border-ink"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-fg-primary">Notes (optional)</label>
+              <input
+                value={saveDesc}
+                onChange={(e) => setSaveDesc(e.target.value)}
+                placeholder="What you're testing, why it matters…"
+                className="w-full rounded-md border border-border-strong bg-card px-3.5 py-2.5 text-sm outline-none focus:border-ink"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setSaveOpen(false)} className="rounded-full border border-border-strong px-5 py-2.5 text-sm font-semibold text-fg-primary">
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveStrategy}
+              disabled={savingStrategy}
+              className="flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {savingStrategy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className="h-4 w-4" />}
+              {savingStrategy ? "Saving…" : "Save strategy"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Footer />
     </div>
   );

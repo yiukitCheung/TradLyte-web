@@ -28,7 +28,9 @@ import {
   Sparkles,
   ChevronRight,
   ExternalLink,
+  Star,
 } from "lucide-react";
+import { isInWatchlist, addToWatchlist, removeFromWatchlist } from "@/lib/watchlist";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -108,6 +110,8 @@ const StockDetail = () => {
   const [marketLoading, setMarketLoading] = useState(true);
   const [news, setNews] = useState<{ title: string; source: string; time: string; url: string }[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
+  const [watched, setWatched] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
 
   const sym = symbol || "AAPL";
   const name = quoteData?.name || stockNames[sym] || `${sym}`;
@@ -319,6 +323,40 @@ const StockDetail = () => {
       cancelled = true;
     };
   }, [user, sym, stockContext, marketLoading, quoteData, score, scoreLabel]);
+
+  useEffect(() => {
+    if (!user || !symbol) {
+      setWatched(false);
+      return;
+    }
+    let cancelled = false;
+    isInWatchlist(user.id, symbol)
+      .then((w) => {
+        if (!cancelled) setWatched(w);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user, symbol]);
+
+  const toggleWatch = async () => {
+    if (!user) return toast.error("Sign in to use your watchlist");
+    if (!symbol) return;
+    const next = !watched;
+    setWatchBusy(true);
+    setWatched(next); // optimistic
+    try {
+      if (next) await addToWatchlist(user.id, symbol);
+      else await removeFromWatchlist(user.id, symbol);
+      toast.success(next ? `Added ${sym} to watchlist` : `Removed ${sym} from watchlist`);
+    } catch (e) {
+      setWatched(!next); // rollback
+      toast.error(e instanceof Error ? e.message : "Could not update watchlist");
+    } finally {
+      setWatchBusy(false);
+    }
+  };
 
   const handleAddToPortfolio = async () => {
     if (!user || !symbol || !purposeAlignment) return;
@@ -534,8 +572,18 @@ const StockDetail = () => {
                   {user ? "View in portfolio" : "Sign in to track"} <ArrowRight className="h-4 w-4" />
                 </button>
               )}
-              <button className="rounded-full border border-border-strong bg-card px-5 py-3 text-sm font-semibold text-fg-primary hover:bg-surface-sunken">
-                Watchlist
+              <button
+                onClick={toggleWatch}
+                disabled={watchBusy}
+                aria-pressed={watched}
+                className={cn(
+                  "flex items-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-60",
+                  watched
+                    ? "border-gold bg-gold/10 text-gold-deep"
+                    : "border-border-strong bg-card text-fg-primary hover:bg-surface-sunken",
+                )}
+              >
+                <Star className={cn("h-4 w-4", watched && "fill-gold-deep")} /> {watched ? "Watching" : "Watchlist"}
               </button>
             </div>
             </div>
