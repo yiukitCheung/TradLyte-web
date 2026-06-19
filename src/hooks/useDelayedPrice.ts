@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isUsMarketLikelyOpen } from "@/lib/marketHours";
+import { isUsMarketLikelyOpen, latestTradingDay, etDateString } from "@/lib/marketHours";
 import { fetchIntradaySeries, fetchLatestPrices, type DelayedPrice } from "@/lib/polygonApi";
 import type { PricePoint } from "@/lib/marketApi";
 
@@ -48,6 +48,12 @@ export function useIntradaySeries(symbol: string | undefined, active: boolean) {
   const [series, setSeries] = useState<PricePoint[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Clear immediately on symbol change so we never show another ticker's line
+  // (or a previous session's) while the new fetch is in flight.
+  useEffect(() => {
+    setSeries([]);
+  }, [symbol]);
+
   usePoll(
     async (signal) => {
       if (!symbol) return;
@@ -67,7 +73,11 @@ export function useIntradaySeries(symbol: string | undefined, active: boolean) {
 
   const tail = series[series.length - 1];
   const latest: DelayedPrice | null = tail ? { price: tail.price, asOf: tail.date } : null;
-  return { series, latest, loading };
+  // ET calendar date of the data we're actually showing, and whether that's the
+  // current trading day (live, delayed) vs. a fallback to the prior session.
+  const asOfDay = tail ? etDateString(new Date(tail.date)) : null;
+  const isLive = !!asOfDay && asOfDay === latestTradingDay();
+  return { series, latest, loading, asOfDay, isLive };
 }
 
 /** Latest delayed price per symbol, polled. */

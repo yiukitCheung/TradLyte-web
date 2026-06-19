@@ -24,7 +24,7 @@ function isWeekend(weekday: string): boolean {
 }
 
 /** Eastern calendar date as YYYY-MM-DD. */
-function etDateString(d: Date): string {
+export function etDateString(d: Date): string {
   // en-CA renders ISO-style YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(d);
 }

@@ -317,6 +317,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_financial_vault: {
+        Row: {
+          ciphertext: string | null
+          ciphertext_iv: string | null
+          created_at: string | null
+          kdf_salt_pw: string
+          kdf_salt_rc: string
+          updated_at: string | null
+          user_id: string
+          version: number
+          wrapped_dek_pw: string
+          wrapped_dek_pw_iv: string
+          wrapped_dek_rc: string
+          wrapped_dek_rc_iv: string
+        }
+        Insert: {
+          ciphertext?: string | null
+          ciphertext_iv?: string | null
+          created_at?: string | null
+          kdf_salt_pw: string
+          kdf_salt_rc: string
+          updated_at?: string | null
+          user_id: string
+          version?: number
+          wrapped_dek_pw: string
+          wrapped_dek_pw_iv: string
+          wrapped_dek_rc: string
+          wrapped_dek_rc_iv: string
+        }
+        Update: {
+          ciphertext?: string | null
+          ciphertext_iv?: string | null
+          created_at?: string | null
+          kdf_salt_pw?: string
+          kdf_salt_rc?: string
+          updated_at?: string | null
+          user_id?: string
+          version?: number
+          wrapped_dek_pw?: string
+          wrapped_dek_pw_iv?: string
+          wrapped_dek_rc?: string
+          wrapped_dek_rc_iv?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

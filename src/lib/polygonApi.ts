@@ -30,7 +30,13 @@ async function fetchMinuteAggs(
     searchParams: { adjusted: "true", sort, limit: String(limit) },
     signal,
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    // Don't swallow silently — a non-2xx here (rate limit, upstream error) is
+    // why the 1D chart can fall back to the prior session and look "stale".
+    const body = await res.text().catch(() => "");
+    console.error("[fetchMinuteAggs] non-2xx", { symbol, day, status: res.status, body: body.slice(0, 200) });
+    return [];
+  }
   const json = (await res.json()) as PolygonAggResponse;
   return Array.isArray(json.results) ? json.results : [];
 }

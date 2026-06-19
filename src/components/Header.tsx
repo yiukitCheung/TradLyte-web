@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { isAdminEmail } from "@/lib/adminApi";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -105,6 +106,11 @@ const Header = () => {
                 <DropdownMenuItem asChild>
                   <Link to="/notifications">Notifications</Link>
                 </DropdownMenuItem>
+                {isAdminEmail(user.email) && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin">Admin</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => signOut()}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>

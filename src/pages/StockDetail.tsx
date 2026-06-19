@@ -486,7 +486,17 @@ const StockDetail = () => {
                 {up ? "+" : ""}{change.toFixed(2)} ({changePct.toFixed(2)}%)
               </span>
             </div>
-            <span className="font-cap text-xs text-fg-muted">Today · delayed 15 min</span>
+            <span className="font-cap text-xs text-fg-muted">
+              {period === "1D"
+                ? isIntraday
+                  ? intraday.isLive
+                    ? "Today · delayed 15 min"
+                    : `Previous session · ${intraday.asOfDay} (markets closed)`
+                  : intraday.loading
+                    ? "Loading live price…"
+                    : "Live price unavailable"
+                : "Latest close · delayed 15 min"}
+            </span>
             <div className="h-px w-full bg-border-subtle" />
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">

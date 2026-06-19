@@ -33,6 +33,9 @@ import {
 } from "@/lib/goalUtils";
 import { fetchProfilePurpose } from "@/lib/purposeUtils";
 import { requestAiChat } from "@/lib/aiChat";
+import { useFinancialVault } from "@/hooks/useFinancialVault";
+import ProjectionChart from "@/components/financial/ProjectionChart";
+import { Lock } from "lucide-react";
 
 const milestoneChips: Array<{ label: string; prompt: string }> = [
   { label: "Buy a home", prompt: "Save for a home down payment" },
@@ -199,6 +202,8 @@ const Goals = () => {
     fetchGoals();
   };
 
+  const { status: vaultStatus, summary: vaultSummary, state: vaultState } = useFinancialVault();
+
   const totalCommitted = goals.reduce((s, g) => s + (g.target_amount || 0), 0);
   const totalSaved = goals.reduce((s, g) => s + (g.current_amount || 0), 0);
   const contributions = useMemo(() => computeMonthlyContributions(goals), [goals]);
@@ -269,6 +274,30 @@ const Goals = () => {
             )}
           </div>
         </section>
+
+        {/* Surplus-growth projection chart (from the private Financial Health vault) */}
+        {vaultStatus === "unlocked" && (vaultSummary?.surplus ?? 0) > 0 && (
+          <section className="px-6 md:px-12">
+            <ProjectionChart
+              monthlyIncome={vaultSummary?.monthlyIncome ?? 0}
+              monthlyExpense={vaultSummary?.monthlyExpense ?? 0}
+              goals={goals}
+              purchases={vaultState?.purchases ?? []}
+              showFundingList={false}
+            />
+          </section>
+        )}
+        {vaultStatus === "locked" && goals.length > 0 && (
+          <section className="px-6 md:px-12">
+            <button
+              onClick={() => navigate("/profile")}
+              className="flex w-full items-center gap-2 rounded-2xl border border-border-subtle bg-card px-5 py-3.5 text-left text-sm text-fg-secondary hover:bg-surface-sunken"
+            >
+              <Lock className="h-4 w-4 text-gold-deep" />
+              Unlock your Financial Health to project when your cash flow funds these goals.
+            </button>
+          </section>
+        )}
 
         {/* AI Planner */}
         <section className="border-y border-border-subtle bg-surface-sunken px-6 py-14 md:px-12">

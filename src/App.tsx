@@ -19,7 +19,9 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Support from "./pages/Support";
 import Notifications from "./pages/Notifications";
+import Admin from "./pages/Admin";
 import PurposeOnboarding from "./components/onboarding/PurposeOnboarding";
+import { FinancialVaultProvider } from "./hooks/useFinancialVault";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <FinancialVaultProvider>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/about" element={<About />} />
@@ -46,9 +49,11 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/support" element={<Support />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </FinancialVaultProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

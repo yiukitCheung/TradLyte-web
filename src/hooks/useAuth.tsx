@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { setSessionPassword, clearSessionPassword } from '@/lib/sessionSecret';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,6 +51,9 @@ export const useAuth = () => {
       // The JS types model email/phone as mutually exclusive, but gotrue accepts
       // both on the signup endpoint.
     } as Parameters<typeof supabase.auth.signUp>[0]);
+    // Hold the password in memory so the financial vault can derive its key for
+    // seamless unlock (never persisted; see sessionSecret).
+    if (!error) setSessionPassword(password);
     return { error };
   };
 
@@ -60,6 +64,7 @@ export const useAuth = () => {
     });
 
     if (!error) {
+      setSessionPassword(password);
       navigate('/dashboard');
     }
 
@@ -88,6 +93,7 @@ export const useAuth = () => {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
+      clearSessionPassword();
       navigate('/');
     }
     return { error };

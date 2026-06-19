@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Pencil, MapPin, Calendar, Check } from "lucide-react";
+import { Pencil, MapPin, Calendar, Check, Wallet, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import FinancialHealthTab from "@/components/financial/FinancialHealthTab";
 
 const stats = [
   { value: "12", label: "Journal streak", color: "text-fg-primary" },
@@ -47,6 +49,17 @@ const Profile = () => {
     <div className="flex min-h-screen flex-col bg-surface-primary">
       <Header />
       <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-6 py-9 md:px-10">
+        <Tabs defaultValue="overview" className="flex flex-1 flex-col gap-6">
+          <TabsList className="self-start">
+            <TabsTrigger value="overview">
+              <UserIcon className="mr-1.5 h-4 w-4" /> Overview
+            </TabsTrigger>
+            <TabsTrigger value="financial">
+              <Wallet className="mr-1.5 h-4 w-4" /> Financial Health
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="m-0 flex flex-col gap-6">
         {/* Profile header */}
         <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-border-subtle bg-card p-8 md:flex-row md:items-center">
           <div className="flex items-center gap-6">
@@ -136,6 +149,12 @@ const Profile = () => {
             </div>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="financial" className="m-0">
+            <FinancialHealthTab />
+          </TabsContent>
+        </Tabs>
       </main>
       <Footer />
     </div>

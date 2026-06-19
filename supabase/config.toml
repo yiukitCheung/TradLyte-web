@@ -12,3 +12,8 @@ verify_jwt = true
 # Public delayed intraday price proxy (Polygon). Key injected server-side.
 [functions.polygon-proxy]
 verify_jwt = false
+
+# Admin dashboard API — per-user; requires session JWT. The function itself
+# enforces the admin email allow-list before any service-role work.
+[functions.admin-api]
+verify_jwt = true

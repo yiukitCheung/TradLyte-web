@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Superpowers — local planning/spec artifacts, not part of the codebase
+docs/superpowers/
