@@ -34,6 +34,7 @@ import {
   Trash2,
   Bookmark,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -741,9 +742,7 @@ const UserDashboard = () => {
               {/* 3-month trend */}
               <div className="h-[120px] w-full">
                 {marketChartLoading && marketChart.length === 0 ? (
-                  <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin text-fg-muted" />
-                  </div>
+                  <Skeleton className="h-full w-full rounded-xl" />
                 ) : marketChart.length === 0 ? (
                   <div className="flex h-full items-center justify-center font-cap text-xs text-fg-muted">Chart unavailable</div>
                 ) : (
@@ -816,9 +815,7 @@ const UserDashboard = () => {
                     <p className="font-cap text-xs text-fg-muted">Add holdings to see your portfolio's path over time.</p>
                   </div>
                 ) : curveLoading && portfolioCurve.length === 0 ? (
-                  <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-fg-muted" />
-                  </div>
+                  <Skeleton className="h-full w-full rounded-xl" />
                 ) : portfolioCurve.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <p className="font-cap text-xs text-fg-muted">Price history unavailable for this range.</p>

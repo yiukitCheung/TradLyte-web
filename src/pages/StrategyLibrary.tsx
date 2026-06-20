@@ -4,8 +4,9 @@ import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Copy, Trash2, Play, FlaskConical } from "lucide-react";
+import { ArrowRight, Copy, Trash2, Play, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   listStrategies,
   duplicateStrategy,
@@ -75,10 +76,20 @@ const StrategyLibrary = () => {
     return (
       <div className="flex min-h-screen flex-col bg-surface-primary">
         <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading your library…
-          </span>
+        <main className="mx-auto w-full max-w-[1200px] flex-1 px-6 py-12 md:px-12">
+          <div className="space-y-3">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-9 w-3/4 max-w-[440px]" />
+          </div>
+          <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-4 rounded-2xl border border-border-subtle bg-card p-6">
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ))}
+          </div>
         </main>
         <Footer />
       </div>

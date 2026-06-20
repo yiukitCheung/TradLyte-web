@@ -36,6 +36,7 @@ import { requestAiChat } from "@/lib/aiChat";
 import { useFinancialVault } from "@/hooks/useFinancialVault";
 import ProjectionChart from "@/components/financial/ProjectionChart";
 import { Lock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const milestoneChips: Array<{ label: string; prompt: string }> = [
   { label: "Buy a home", prompt: "Save for a home down payment" },
@@ -222,10 +223,17 @@ const Goals = () => {
     return (
       <div className="flex min-h-screen flex-col bg-surface-primary">
         <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading your goals…
-          </span>
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 pb-7 pt-16 md:px-12">
+          <div className="space-y-3">
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-10 w-3/4 max-w-[480px]" />
+            <Skeleton className="h-4 w-2/3 max-w-[560px]" />
+          </div>
+          <div className="mt-10 space-y-5">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-44 w-full rounded-2xl" />
+            ))}
+          </div>
         </main>
         <Footer />
       </div>

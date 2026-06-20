@@ -68,6 +68,14 @@
 
     --radius: 1rem;                  /* r-lg 16 */
 
+    /* Motion system — mirrors mobile lib/motion.ts (restrained, ease-out). */
+    --motion-fast: 180ms;
+    --motion-base: 260ms;
+    --motion-slow: 360ms;
+    --motion-shimmer: 1400ms;
+    --ease-standard: cubic-bezier(0.33, 1, 0.68, 1);
+    --skeleton-shimmer: 0 0% 100%;   /* highlight band over surface-sunken, used at low alpha */
+
     --gradient-primary: radial-gradient(120% 90% at 22% 16%, hsl(41 30% 52% / 0.62), transparent 70%), radial-gradient(80% 70% at 90% 95%, hsl(36 31% 69% / 0.30), transparent 70%);
     --gradient-accent: linear-gradient(135deg, hsl(36 31% 69%), hsl(37 33% 75%));
     --gradient-subtle: linear-gradient(180deg, hsl(36 19% 95%), hsl(40 19% 91%));
@@ -209,6 +217,43 @@
 
 .animate-slide-in {
   animation: slide-in 0.5s ease-out;
+}
+
+/* Shimmer-sweep placeholder — mirrors the mobile Skeleton (components/ui.tsx).
+   A translucent highlight band travels across a static surface-sunken base. */
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.skeleton-shimmer {
+  background-color: hsl(var(--surface-sunken));
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    hsl(var(--skeleton-shimmer) / 0.45) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer var(--motion-shimmer) linear infinite;
+}
+
+/* Honor the OS "reduce motion" setting: static states, no sweep or entrance. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-glow,
+  .animate-pulse,
+  .landing-fade-up,
+  .landing-float,
+  .landing-float-delayed,
+  .landing-grow-bar {
+    animation: none !important;
+  }
 }
 
 @keyframes landing-fade-up {

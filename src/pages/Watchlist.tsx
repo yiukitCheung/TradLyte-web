@@ -4,8 +4,9 @@ import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
-import { Star, Loader2, X, ArrowRight, Search } from "lucide-react";
+import { Star, X, ArrowRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { listWatchlist, removeFromWatchlist, type WatchlistItem } from "@/lib/watchlist";
 import { fetchMarketQuote, toSafeNumber, type MarketQuoteItem } from "@/lib/marketApi";
 
@@ -68,10 +69,26 @@ const Watchlist = () => {
     return (
       <div className="flex min-h-screen flex-col bg-surface-primary">
         <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading your watchlist…
-          </span>
+        <main className="mx-auto w-full max-w-[1000px] flex-1 px-6 py-12 md:px-12">
+          <div className="space-y-3">
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-9 w-3/4 max-w-[440px]" />
+            <Skeleton className="h-4 w-2/3 max-w-[520px]" />
+          </div>
+          <div className="mt-10 space-y-3 rounded-2xl border border-border-subtle bg-card p-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-4 border-b border-border-subtle py-4 last:border-0"
+              >
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
         </main>
         <Footer />
       </div>

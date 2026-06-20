@@ -1,5 +1,6 @@
 import { useFinancialVault } from "@/hooks/useFinancialVault";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import VaultSetup from "./VaultSetup";
 import VaultUnlock from "./VaultUnlock";
 import FinancialWorkspace from "./FinancialWorkspace";
@@ -9,9 +10,19 @@ export default function FinancialHealthTab() {
   const { status, error, reload } = useFinancialVault();
 
   if (status === "loading") {
+    // Layout-shaped skeleton scaffold (title + two summary cards) instead of a
+    // bare spinner on a blank panel — mirrors the mobile vault loading state.
     return (
-      <div className="flex h-48 items-center justify-center text-fg-muted">
-        <Loader2 className="h-5 w-5 animate-spin" />
+      <div className="space-y-5">
+        <Skeleton className="h-3.5 w-1/2" />
+        <div className="space-y-3 rounded-2xl border border-border-subtle bg-card p-6">
+          <Skeleton className="h-3 w-2/5" />
+          <Skeleton className="h-7 w-3/5" />
+        </div>
+        <div className="space-y-3 rounded-2xl border border-border-subtle bg-card p-6">
+          <Skeleton className="h-3 w-2/5" />
+          <Skeleton className="h-7 w-1/2" />
+        </div>
       </div>
     );
   }

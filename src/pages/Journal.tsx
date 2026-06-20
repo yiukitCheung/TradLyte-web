@@ -23,7 +23,8 @@ import {
 } from "@/lib/rewards";
 import { fetchProfilePurpose, purposeReflectionQuestion } from "@/lib/purposeUtils";
 import { toast } from "sonner";
-import { Flame, TrendingUp, TrendingDown, Check, ArrowRight, Feather, Loader2, Compass } from "lucide-react";
+import { Flame, TrendingUp, TrendingDown, Check, ArrowRight, Feather, Compass } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const logRows = [
@@ -204,10 +205,17 @@ const Journal = () => {
     return (
       <div className="flex min-h-screen flex-col bg-surface-primary">
         <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading your journal…
-          </span>
+        <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-7 px-6 py-9 md:px-10">
+          <div className="space-y-3">
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-9 w-3/4 max-w-[420px]" />
+          </div>
+          <Skeleton className="h-56 w-full rounded-2xl" />
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+            ))}
+          </div>
         </main>
         <Footer />
       </div>
