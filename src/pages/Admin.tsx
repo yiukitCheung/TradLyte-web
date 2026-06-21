@@ -5,6 +5,7 @@ import {
   fetchAdminOverview,
   createAdminUser,
   deleteAdminUser,
+  verifyAdminUserPhone,
   type AdminOverview,
   type AdminUserRow,
 } from "@/lib/adminApi";
@@ -13,6 +14,7 @@ import {
   Users,
   UserPlus,
   Trash2,
+  BadgeCheck,
   Loader2,
   RefreshCw,
   TrendingUp,
@@ -115,6 +117,11 @@ const Admin = () => {
   const [toDelete, setToDelete] = useState<AdminUserRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Verify-phone dialog state.
+  const [toVerify, setToVerify] = useState<AdminUserRow | null>(null);
+  const [verifyPhoneInput, setVerifyPhoneInput] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -176,6 +183,32 @@ const Admin = () => {
       toast.error(e instanceof Error ? e.message : "Failed to delete user");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const openVerify = (u: AdminUserRow) => {
+    setToVerify(u);
+    // Prefill with the existing number (E.164) when present, else a country prefix.
+    setVerifyPhoneInput(u.phone ? (u.phone.startsWith("+") ? u.phone : `+${u.phone}`) : "+1");
+  };
+
+  const handleVerifyPhone = async () => {
+    if (!toVerify) return;
+    const phone = verifyPhoneInput.trim();
+    if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
+      toast.error("Enter a valid E.164 phone, e.g. +15005550006");
+      return;
+    }
+    setVerifying(true);
+    try {
+      await verifyAdminUserPhone({ userId: toVerify.id, phone });
+      toast.success(`Phone marked verified for ${toVerify.email ?? toVerify.id}`);
+      setToVerify(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to verify phone");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -338,14 +371,25 @@ const Admin = () => {
                         <td className="px-5 py-3 text-center text-fg-secondary">{u.journalCount}</td>
                         <td className="px-5 py-3 text-center text-fg-secondary">{u.portfolioCount}</td>
                         <td className="px-5 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setToDelete(u)}
-                            aria-label={`Delete ${u.email ?? u.id}`}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-negative-soft hover:text-negative"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openVerify(u)}
+                              aria-label={`Mark phone verified for ${u.email ?? u.id}`}
+                              title="Mark phone verified"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-positive-soft hover:text-positive"
+                            >
+                              <BadgeCheck className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setToDelete(u)}
+                              aria-label={`Delete ${u.email ?? u.id}`}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-negative-soft hover:text-negative"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -437,6 +481,39 @@ const Admin = () => {
             <Button onClick={handleCreate} disabled={creating}>
               {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create user
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark phone verified dialog */}
+      <Dialog open={!!toVerify} onOpenChange={(o) => !o && setToVerify(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark phone verified</DialogTitle>
+            <DialogDescription>
+              Confirms the phone for <strong>{toVerify?.email ?? toVerify?.id}</strong> without an SMS,
+              so the account skips the mobile phone-verification step. Use a real or test number in
+              E.164 format (e.g. +15005550006).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="verify-phone">Phone (E.164)</Label>
+            <Input
+              id="verify-phone"
+              value={verifyPhoneInput}
+              onChange={(e) => setVerifyPhoneInput(e.target.value)}
+              placeholder="+15005550006"
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setToVerify(null)} disabled={verifying}>
+              Cancel
+            </Button>
+            <Button onClick={handleVerifyPhone} disabled={verifying}>
+              {verifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Mark verified
             </Button>
           </DialogFooter>
         </DialogContent>

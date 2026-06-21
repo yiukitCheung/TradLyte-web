@@ -77,3 +77,7 @@ export const createAdminUser = (input: { email: string; password: string; fullNa
 
 export const deleteAdminUser = (userId: string) =>
   invoke<{ ok: true }>("deleteUser", { userId });
+
+/** Mark a user's phone confirmed (no SMS) so they skip the mobile phone gate. */
+export const verifyAdminUserPhone = (input: { userId: string; phone: string }) =>
+  invoke<{ ok: true; phoneConfirmedAt: string | null }>("verifyPhone", input);
