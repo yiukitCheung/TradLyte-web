@@ -250,6 +250,22 @@ serve(async (req) => {
         return json({ ok: true });
       }
 
+      // Mark a user's phone confirmed without an SMS round-trip — for test
+      // accounts and manual support overrides. Sets phone_confirmed_at, which is
+      // what the mobile app's verify-phone gate checks.
+      case "verifyPhone": {
+        const userId = String(body.payload?.userId ?? "").trim();
+        const phone = String(body.payload?.phone ?? "").trim();
+        if (!userId) return json({ error: "userId is required" }, 400);
+        if (!phone) return json({ error: "phone (E.164, e.g. +15005550006) is required" }, 400);
+        const { data, error } = await admin.auth.admin.updateUserById(userId, {
+          phone,
+          phone_confirm: true,
+        });
+        if (error) return json({ error: error.message }, 400);
+        return json({ ok: true, userId: data.user?.id, phoneConfirmedAt: data.user?.phone_confirmed_at ?? null });
+      }
+
       default:
         return json({ error: `Unknown action: ${body.action}` }, 400);
     }
