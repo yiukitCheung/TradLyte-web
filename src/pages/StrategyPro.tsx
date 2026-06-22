@@ -52,7 +52,6 @@ import {
   type CompareOperator,
 } from "@/lib/proStrategy";
 import { saveStrategy } from "@/lib/savedStrategies";
-import { defaultStrategyDraft } from "@/lib/strategyDraft";
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrored from StrategyBuilder)
@@ -368,13 +367,13 @@ const StrategyPro = () => {
     if (!name) return toast.error("Give your strategy a name");
     setSaving(true);
     try {
-      // Pro configs are not expressed as a guided StrategyDraft; store a placeholder
-      // draft so the library can still display the saved result.
+      // Store the real pro config with a discriminator so the library can
+      // route pro rows back to the Pro Lab instead of the guided builder.
       await saveStrategy(user.id, {
         name,
         description: saveDesc.trim() || null,
         symbol: config.symbol.trim().toUpperCase() || null,
-        draft: { ...defaultStrategyDraft(), strategyName: name },
+        draft: { ...config, _source: "pro" } as any,
         result,
       });
       toast.success("Strategy saved to your library");

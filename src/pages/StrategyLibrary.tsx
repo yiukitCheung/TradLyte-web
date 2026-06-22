@@ -47,7 +47,12 @@ const StrategyLibrary = () => {
   }, [load]);
 
   const openInLab = (s: SavedStrategy) => {
-    navigate("/strategy-builder", { state: { draft: s.draft, symbol: s.symbol ?? undefined } });
+    const isPro = (s.draft as any)?._source === "pro";
+    if (isPro) {
+      navigate("/strategy-pro");
+    } else {
+      navigate("/strategy-builder", { state: { draft: s.draft, symbol: s.symbol ?? undefined } });
+    }
   };
 
   const handleDuplicate = async (s: SavedStrategy) => {
@@ -133,15 +138,23 @@ const StrategyLibrary = () => {
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {strategies.map((s) => {
               const ret = s.result?.total_return_pct;
+              const isPro = (s.draft as any)?._source === "pro";
               return (
                 <div key={s.id} className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-card p-6">
                   <div className="flex items-start justify-between gap-3">
                     <h3 className="font-serif text-xl font-medium leading-snug text-fg-primary">{s.name}</h3>
-                    {s.symbol && (
-                      <span className="flex-shrink-0 rounded-md bg-surface-sunken px-2 py-1 font-cap text-[11px] font-semibold text-gold-deep">
-                        {s.symbol}
-                      </span>
-                    )}
+                    <div className="flex flex-shrink-0 items-center gap-1.5">
+                      {isPro && (
+                        <span className="rounded-md bg-gold/10 px-2 py-1 font-cap text-[11px] font-semibold text-gold-deep">
+                          Pro config
+                        </span>
+                      )}
+                      {s.symbol && (
+                        <span className="rounded-md bg-surface-sunken px-2 py-1 font-cap text-[11px] font-semibold text-gold-deep">
+                          {s.symbol}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {s.description && <p className="text-sm leading-relaxed text-fg-secondary">{s.description}</p>}
                   {s.result && (
@@ -159,7 +172,7 @@ const StrategyLibrary = () => {
                       onClick={() => openInLab(s)}
                       className="flex flex-1 items-center justify-center gap-2 rounded-full bg-ink py-2.5 text-sm font-semibold text-white"
                     >
-                      <Play className="h-3.5 w-3.5" /> Open in Lab
+                      <Play className="h-3.5 w-3.5" /> {isPro ? "Open Pro Lab" : "Open in Lab"}
                     </button>
                     <button
                       type="button"
