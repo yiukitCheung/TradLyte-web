@@ -10,6 +10,7 @@ export interface UserPurpose {
 
 export interface ProfilePurposeRow {
   onboarding_complete: boolean;
+  is_pro: boolean | null;
   primary_goal: string | null;
   purpose_statement: string | null;
   investment_experience: string | null;
@@ -22,7 +23,7 @@ const QUOTE_STORAGE_KEY = "tradlyte_quote_index";
 const LAST_QUOTE_DATE_KEY = "tradlyte_last_quote_date";
 
 const PROFILE_PURPOSE_COLUMNS =
-  "onboarding_complete, primary_goal, purpose_statement, investment_experience, time_horizon, risk_tolerance" as const;
+  "onboarding_complete, is_pro, primary_goal, purpose_statement, investment_experience, time_horizon, risk_tolerance" as const;
 
 export const getUserPurpose = (): UserPurpose | null => {
   try {
