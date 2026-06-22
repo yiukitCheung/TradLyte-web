@@ -3,7 +3,8 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { ArrowRight, Check, Play, RotateCcw, Activity, Loader2, Bookmark, Library } from "lucide-react";
+import { ArrowRight, Check, Play, RotateCcw, Activity, Loader2, Bookmark, Library, Sparkles } from "lucide-react";
+import { fetchProfilePurpose } from "@/lib/purposeUtils";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +83,15 @@ const StrategyBuilder = () => {
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const resultsRef = useRef<HTMLElement>(null);
   const location = useLocation();
+
+  // Pro badge — fetched once on mount; non-blocking (no redirect if false).
+  const [isPro, setIsPro] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    fetchProfilePurpose(user.id).then((profile) => {
+      if (profile?.is_pro === true) setIsPro(true);
+    });
+  }, [user]);
 
   // Save-strategy dialog (persists the current draft + result to user_strategies).
   const [saveOpen, setSaveOpen] = useState(false);
@@ -321,12 +331,22 @@ const StrategyBuilder = () => {
           <p className="mt-6 max-w-[560px] text-[18px] leading-relaxed text-fg-secondary">
             Three simple choices — how you read the market, when you buy, and when you sell. Then replay it against real history.
           </p>
-          <Link
-            to="/strategy-library"
-            className="mt-6 inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-5 py-2.5 font-cap text-sm font-medium text-fg-primary transition-colors hover:border-ink"
-          >
-            <Library className="h-4 w-4 text-gold-deep" /> Your saved strategies <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link
+              to="/strategy-library"
+              className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-5 py-2.5 font-cap text-sm font-medium text-fg-primary transition-colors hover:border-ink"
+            >
+              <Library className="h-4 w-4 text-gold-deep" /> Your saved strategies <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+            {isPro && (
+              <Link
+                to="/strategy-pro"
+                className="inline-flex items-center gap-2 rounded-full border border-gold/60 bg-gold/10 px-5 py-2.5 font-cap text-sm font-semibold text-gold-deep transition-colors hover:border-gold hover:bg-gold/20"
+              >
+                <Sparkles className="h-4 w-4" /> Pro builder <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </div>
         </section>
 
         {/* Progress */}
