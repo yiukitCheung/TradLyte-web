@@ -6,6 +6,7 @@ import {
   createAdminUser,
   deleteAdminUser,
   verifyAdminUserPhone,
+  setAdminUserPro,
   type AdminOverview,
   type AdminUserRow,
 } from "@/lib/adminApi";
@@ -23,6 +24,7 @@ import {
   Feather,
   Activity,
   Search,
+  Star,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -380,6 +382,23 @@ const Admin = () => {
                               className="inline-flex h-8 w-8 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-positive-soft hover:text-positive"
                             >
                               <BadgeCheck className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await setAdminUserPro({ userId: u.id, isPro: !u.isPro });
+                                  toast.success(`${u.email ?? u.id} is ${!u.isPro ? "now Pro" : "no longer Pro"}`);
+                                  await load();
+                                } catch (e) {
+                                  toast.error(e instanceof Error ? e.message : "Failed to update pro tier");
+                                }
+                              }}
+                              aria-label={`${u.isPro ? "Remove" : "Grant"} pro for ${u.email ?? u.id}`}
+                              title={u.isPro ? "Pro — click to remove" : "Grant pro"}
+                              className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors ${u.isPro ? "text-gold-deep hover:bg-surface-sunken" : "text-fg-muted hover:bg-surface-sunken hover:text-gold-deep"}`}
+                            >
+                              <Star className="h-4 w-4" fill={u.isPro ? "currentColor" : "none"} />
                             </button>
                             <button
                               type="button"
