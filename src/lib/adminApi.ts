@@ -17,6 +17,7 @@ export interface AdminUserRow {
   createdAt: string;
   lastSignInAt: string | null;
   onboardingComplete: boolean;
+  isPro: boolean;
   strategyCount: number;
   goalCount: number;
   journalCount: number;
@@ -81,3 +82,7 @@ export const deleteAdminUser = (userId: string) =>
 /** Mark a user's phone confirmed (no SMS) so they skip the mobile phone gate. */
 export const verifyAdminUserPhone = (input: { userId: string; phone: string }) =>
   invoke<{ ok: true; phoneConfirmedAt: string | null }>("verifyPhone", input);
+
+/** Toggle a user's pro tier. */
+export const setAdminUserPro = (input: { userId: string; isPro: boolean }) =>
+  invoke<{ ok: true; isPro: boolean }>("setPro", input);

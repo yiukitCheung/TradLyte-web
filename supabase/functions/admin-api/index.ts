@@ -101,7 +101,7 @@ async function buildOverview(admin: ReturnType<typeof createClient>) {
   const [authUsers, profilesRes, strategies, goals, journals, portfolio, regrets] =
     await Promise.all([
       listAllAuthUsers(admin),
-      admin.from("profiles").select("id, full_name, onboarding_complete, created_at"),
+      admin.from("profiles").select("id, full_name, onboarding_complete, is_pro, created_at"),
       countByUser(admin, "user_strategies"),
       countByUser(admin, "user_goals"),
       countByUser(admin, "journal_entries"),
@@ -115,6 +115,7 @@ async function buildOverview(admin: ReturnType<typeof createClient>) {
       id: string;
       full_name: string | null;
       onboarding_complete: boolean | null;
+      is_pro: boolean | null;
     }>).map((p) => [p.id, p]),
   );
 
@@ -162,6 +163,7 @@ async function buildOverview(admin: ReturnType<typeof createClient>) {
         createdAt: u.created_at,
         lastSignInAt: u.last_sign_in_at,
         onboardingComplete: profile?.onboarding_complete ?? false,
+        isPro: profile?.is_pro ?? false,
         strategyCount: strategies.perUser.get(u.id) ?? 0,
         goalCount: goals.perUser.get(u.id) ?? 0,
         journalCount: journals.perUser.get(u.id) ?? 0,
@@ -264,6 +266,15 @@ serve(async (req) => {
         });
         if (error) return json({ error: error.message }, 400);
         return json({ ok: true, userId: data.user?.id, phoneConfirmedAt: data.user?.phone_confirmed_at ?? null });
+      }
+
+      case "setPro": {
+        const userId = String(body.payload?.userId ?? "").trim();
+        const isPro = body.payload?.isPro === true;
+        if (!userId) return json({ error: "userId is required" }, 400);
+        const { error } = await admin.from("profiles").update({ is_pro: isPro }).eq("id", userId);
+        if (error) return json({ error: error.message }, 400);
+        return json({ ok: true, isPro });
       }
 
       default:

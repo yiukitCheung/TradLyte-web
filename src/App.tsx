@@ -20,6 +20,7 @@ import Settings from "./pages/Settings";
 import Support from "./pages/Support";
 import Notifications from "./pages/Notifications";
 import Admin from "./pages/Admin";
+import StrategyPro from "./pages/StrategyPro";
 import PurposeOnboarding from "./components/onboarding/PurposeOnboarding";
 import { FinancialVaultProvider } from "./hooks/useFinancialVault";
 
@@ -50,6 +51,7 @@ const App = () => (
           <Route path="/support" element={<Support />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/strategy-pro" element={<StrategyPro />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

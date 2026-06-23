@@ -77,6 +77,7 @@ export type Database = {
           full_name: string | null
           id: string
           investment_experience: string | null
+          is_pro: boolean | null
           onboarding_complete: boolean
           primary_goal: string | null
           purpose_statement: string | null
@@ -89,6 +90,7 @@ export type Database = {
           full_name?: string | null
           id: string
           investment_experience?: string | null
+          is_pro?: boolean | null
           onboarding_complete?: boolean
           primary_goal?: string | null
           purpose_statement?: string | null
@@ -101,6 +103,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           investment_experience?: string | null
+          is_pro?: boolean | null
           onboarding_complete?: boolean
           primary_goal?: string | null
           purpose_statement?: string | null
