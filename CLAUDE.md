@@ -18,7 +18,7 @@ npm run lint         # eslint .
 npm run preview      # preview a built bundle
 ```
 
-There is **no test harness** (no vitest/jest). Verify changes with `npm run build` (type-check happens at build) + `npm run lint` + driving the real app in a browser. To verify data correctness, hit the edge functions directly with curl using the anon key as both `apikey` and `Authorization: Bearer` headers, e.g. `POST {SUPABASE_URL}/functions/v1/market-proxy?path=/picks/today/metadata`.
+Unit tests run on **Vitest** (`npm run test`, node env, `src/**/*.test.ts`) — currently covering the client-side indicator math (`src/lib/indicators.ts`) and education lesson invariants. Most of the app still has no tests; also verify changes with `npm run build` + `npm run lint` + driving the real app in a browser. To verify data correctness, hit the edge functions directly with curl using the anon key as both `apikey` and `Authorization: Bearer` headers, e.g. `POST {SUPABASE_URL}/functions/v1/market-proxy?path=/picks/today/metadata`.
 
 TypeScript is **loose** (`strict: false`, `noImplicitAny: false`, unused locals/params allowed) — don't expect the compiler to catch much.
 
