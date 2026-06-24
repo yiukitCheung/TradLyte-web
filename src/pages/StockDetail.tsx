@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
@@ -66,21 +66,6 @@ const stockNames: Record<string, string> = {
   AVGO: "Broadcom Inc.",
 };
 
-const Sparkline = ({ up }: { up: boolean }) => {
-  const bars = useMemo(() => Array.from({ length: 8 }, () => 8 + Math.random() * 22), []);
-  return (
-    <div className="flex h-6 items-end gap-[3px]">
-      {bars.map((h, i) => (
-        <span
-          key={i}
-          className={cn("w-[3px] rounded-full", up ? "bg-positive/70" : "bg-negative/70")}
-          style={{ height: h }}
-        />
-      ))}
-    </div>
-  );
-};
-
 const StockDetail = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -124,18 +109,6 @@ const StockDetail = () => {
   const changePct = first && first !== 0 ? (change / first) * 100 : 0;
   const score = user ? 78 : 72;
   const scoreLabel = score >= 80 ? "Strong Buy" : score >= 60 ? "Buy" : score >= 40 ? "Hold" : "Sell";
-
-  const fundamentals = useMemo(
-    () => [
-      { label: "Open", value: formatCurrency(toSafeNumber(quoteData?.open)), delta: "today", up: true },
-      { label: "Day high", value: formatCurrency(toSafeNumber(quoteData?.high)), delta: "today", up: true },
-      { label: "Day low", value: formatCurrency(toSafeNumber(quoteData?.low)), delta: "today", up: false },
-      { label: "Volume", value: quoteData?.volume != null ? quoteData.volume.toLocaleString() : "N/A", delta: "today", up: true },
-      { label: "52w high", value: formatCurrency(yearRange.high), delta: "1Y", up: true },
-      { label: "Mkt cap", value: formatMarketCap(quoteData?.market_cap ?? null), delta: quoteData?.industry ?? "—", up: true },
-    ],
-    [quoteData, yearRange],
-  );
 
   useEffect(() => {
     if (!symbol) navigate("/dashboard");
@@ -536,21 +509,7 @@ const StockDetail = () => {
 
         {/* Study: fundamentals + drivers */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_430px]">
-          <div className="rounded-2xl border border-border-subtle bg-card p-7">
-            <h3 className="font-serif text-[22px] font-medium text-fg-primary">Market snapshot</h3>
-            <p className="font-cap text-xs text-fg-muted">Live quote · {quoteData?.as_of_date ?? "—"}</p>
-            <div className="mt-5 grid grid-cols-[1fr_120px_90px_80px] gap-5 border-b border-border-strong pb-2.5 font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
-              <span>Metric</span><span>Value</span><span>Trend</span><span>Change</span>
-            </div>
-            {fundamentals.map((f) => (
-              <div key={f.label} className="grid grid-cols-[1fr_120px_90px_80px] items-center gap-5 border-b border-border-subtle py-3 last:border-b-0">
-                <span className="text-sm text-fg-secondary">{f.label}</span>
-                <span className="text-sm font-semibold text-fg-primary">{f.value}</span>
-                <Sparkline up={f.up} />
-                <span className={cn("text-sm font-medium", f.up ? "text-positive" : "text-negative")}>{f.delta}</span>
-              </div>
-            ))}
-          </div>
+          <StrategyRead symbol={sym} signedIn={!!user} />
 
           <div className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-card p-7">
             <div>
@@ -581,11 +540,6 @@ const StockDetail = () => {
             </p>
           </div>
         </div>
-
-        <div className="my-7 h-px w-full bg-border-strong" />
-
-        {/* Strategy read — best fit for current conditions */}
-        <StrategyRead symbol={sym} signedIn={!!user} />
 
         <div className="my-7 h-px w-full bg-border-strong" />
 

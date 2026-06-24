@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   fetchStrategyRead,
   strategyHeadline,
@@ -16,6 +18,10 @@ type Props = { symbol: string; signedIn: boolean };
 
 const CARD = "flex flex-col gap-5 rounded-2xl border border-border-subtle bg-card p-7";
 const EYEBROW = "font-cap text-[11px] uppercase tracking-[0.18em] text-fg-muted";
+
+const HOW_IT_WORKS =
+  "Each week we test thousands of strategy variations against this stock's recent price action, " +
+  "then surface the single best-fitting one for the current market — summarized here with its real backtested results.";
 
 /**
  * "Best fit for current conditions" read on the stock detail page. Self-fetches
@@ -45,55 +51,42 @@ export default function StrategyRead({ symbol, signedIn }: Props) {
 
   if (!signedIn) {
     return (
-      <div className={CARD}>
-        <Eyebrow regime="current conditions" />
+      <Frame eyebrow="signed out">
         <p className="font-cap text-sm text-fg-muted">Sign in to see the strategy read for {symbol}.</p>
-      </div>
+      </Frame>
     );
   }
 
-  if (loading) return <LoadingState symbol={symbol} />;
+  if (loading) return <LoadingState />;
 
   const rec = data?.recommendation;
   if (!data || data.status !== "confirmed" || !rec) {
     return (
-      <div className={CARD}>
-        <Eyebrow regime="current conditions" />
+      <Frame eyebrow="no read yet">
         <p className="font-cap text-sm text-fg-muted">
           No confirmed strategy for {symbol} yet — it sits outside the liquid set we test each week.
         </p>
-      </div>
+      </Frame>
     );
   }
 
-  const paragraphs = (data.narrative ?? "")
-    .split(/\n{2,}/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const regime = regimeLabel(rec.regime_bucket).replace(/^an? /, "");
 
   return (
-    <div className={CARD}>
-      <Eyebrow regime={regimeLabel(rec.regime_bucket)} />
+    <Frame eyebrow={`${regime} · refreshed weekly`}>
+      <p className="-mt-1 font-cap text-xs text-fg-muted">
+        <span className="text-fg-secondary">{strategyHeadline(rec.skeleton_id)}</span> · {strategyDetail(rec)}
+      </p>
 
-      <div className="flex flex-col gap-1">
-        <h3 className="font-serif text-2xl font-medium leading-tight text-fg-primary">
-          {strategyHeadline(rec.skeleton_id)}
-        </h3>
-        <p className="font-cap text-xs text-fg-muted">{strategyDetail(rec)}</p>
-      </div>
-
-      {paragraphs.length > 0 ? (
-        <div className="flex max-w-[680px] flex-col gap-3 text-[15px] leading-relaxed text-fg-secondary">
-          {paragraphs.map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
-        </div>
-      ) : (
-        <p className="max-w-[680px] text-[15px] leading-relaxed text-fg-secondary">
-          {strategyApproach(rec.skeleton_id)} was the best-fitting approach for {symbol} in conditions like
-          now. The test numbers are below — weigh the drawdown before you act.
-        </p>
-      )}
+      <Narrative
+        text={data.narrative}
+        fallback={
+          <>
+            {strategyApproach(rec.skeleton_id)} was the best-fitting approach for {symbol} in conditions like
+            now. The numbers below are its real backtest — weigh the drawdown before you act.
+          </>
+        }
+      />
 
       {/* Signature: the drawdown, set apart as the risk to brace for. */}
       <div className="flex items-center gap-3 pt-1">
@@ -110,17 +103,79 @@ export default function StrategyRead({ symbol, signedIn }: Props) {
         <Stat label="Trades" value={String(rec.real_trade_count)} />
         <Stat label="Tested over" value={`${rec.confirmation_window_days}d`} />
       </div>
+    </Frame>
+  );
+}
+
+/** Card shell with the section title, the how-it-works hint, and an eyebrow. */
+function Frame({ eyebrow, children }: { eyebrow: string; children: ReactNode }) {
+  return (
+    <div className={CARD}>
+      <div className="flex flex-col gap-1.5">
+        <p className={EYEBROW}>{eyebrow}</p>
+        <div className="flex items-center gap-1.5">
+          <h3 className="font-serif text-2xl font-medium leading-tight text-fg-primary">
+            Best fit for current conditions
+          </h3>
+          <HowHint />
+        </div>
+      </div>
+      {children}
     </div>
   );
 }
 
-function Eyebrow({ regime }: { regime: string }) {
+function HowHint() {
   return (
-    <p className={EYEBROW}>
-      Best fit now <span className="mx-1.5 text-border-strong">·</span> {regime}
-      <span className="mx-1.5 text-border-strong">·</span> refreshed weekly
-    </p>
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="How this is generated"
+            className="text-fg-muted transition-colors hover:text-fg-secondary"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs font-cap text-xs leading-relaxed">{HOW_IT_WORKS}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
+}
+
+/** Render the narrative, turning **lead-ins** into real emphasis and splitting paragraphs. */
+function Narrative({ text, fallback }: { text: string | null; fallback: ReactNode }) {
+  const paragraphs = (text ?? "")
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) {
+    return <p className="max-w-[680px] text-[15px] leading-relaxed text-fg-secondary">{fallback}</p>;
+  }
+
+  return (
+    <div className="flex max-w-[680px] flex-col gap-3 text-[15px] leading-relaxed text-fg-secondary">
+      {paragraphs.map((p, i) => (
+        <p key={i}>{renderInline(p)}</p>
+      ))}
+    </div>
+  );
+}
+
+/** Inline markdown: **bold** -> emphasized; everything else is plain text. */
+function renderInline(line: string): ReactNode[] {
+  return line.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+    const bold = part.match(/^\*\*([^*]+)\*\*$/);
+    return bold ? (
+      <strong key={i} className="font-semibold text-fg-primary">
+        {bold[1]}
+      </strong>
+    ) : (
+      <span key={i}>{part}</span>
+    );
+  });
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -134,12 +189,10 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-function LoadingState({ symbol }: { symbol: string }) {
+function LoadingState() {
   return (
-    <div className={CARD}>
-      <Eyebrow regime="reading conditions" />
+    <Frame eyebrow="reading conditions">
       <div className="flex flex-col gap-2">
-        <div className="h-7 w-40 animate-pulse rounded bg-surface-sunken" />
         <div className="h-3 w-56 animate-pulse rounded bg-surface-sunken" />
       </div>
       <div className="flex flex-col gap-2">
@@ -153,7 +206,6 @@ function LoadingState({ symbol }: { symbol: string }) {
           <div key={i} className="h-8 animate-pulse rounded bg-surface-sunken" />
         ))}
       </div>
-      <span className="sr-only">Loading the strategy read for {symbol}</span>
-    </div>
+    </Frame>
   );
 }
