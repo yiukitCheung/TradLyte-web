@@ -513,31 +513,28 @@ const StockDetail = () => {
 
           <div className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-card p-7">
             <div>
-              <h3 className="font-serif text-[22px] font-medium text-fg-primary">What's driving the score</h3>
-              <p className="font-cap text-xs text-fg-muted">Weighted factors</p>
+              <h3 className="font-serif text-[22px] font-medium text-fg-primary">Market snapshot</h3>
+              <p className="font-cap text-xs text-fg-muted">Live quote · {quoteData?.as_of_date ?? "—"}</p>
             </div>
-            <div className="flex flex-col gap-3.5">
+            <div className="flex flex-col">
               {[
-                { l: "Momentum", v: 84 },
-                { l: "Balance sheet", v: 78 },
-                { l: "Valuation", v: 52 },
-                { l: "Sentiment", v: 71 },
-              ].map((d) => (
-                <div key={d.l} className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-fg-secondary">{d.l}</span>
-                    <span className="font-semibold text-fg-primary">{d.v}</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface-sunken">
-                    <div className={cn("h-2 rounded-full", d.v >= 70 ? "bg-gold-deep" : "bg-border-strong")} style={{ width: `${d.v}%` }} />
-                  </div>
+                { l: "Open", v: formatCurrency(toSafeNumber(quoteData?.open)) },
+                { l: "Day high", v: formatCurrency(toSafeNumber(quoteData?.high)) },
+                { l: "Day low", v: formatCurrency(toSafeNumber(quoteData?.low)) },
+                { l: "Volume", v: quoteData?.volume != null ? quoteData.volume.toLocaleString() : "N/A" },
+                { l: "52-week high", v: formatCurrency(yearRange.high) },
+                { l: "52-week low", v: formatCurrency(yearRange.low) },
+                { l: "Market cap", v: formatMarketCap(quoteData?.market_cap ?? null) },
+              ].map((r) => (
+                <div
+                  key={r.l}
+                  className="flex items-center justify-between border-b border-border-subtle py-2.5 last:border-b-0"
+                >
+                  <span className="text-sm text-fg-secondary">{r.l}</span>
+                  <span className="text-sm font-semibold tabular-nums text-fg-primary">{r.v}</span>
                 </div>
               ))}
             </div>
-            <div className="mt-auto h-px w-full bg-border-subtle" />
-            <p className="font-cap text-[11px] leading-relaxed text-fg-muted">
-              Scores blend price momentum, fundamental quality, valuation vs history, and news sentiment. For research, not investment advice.
-            </p>
           </div>
         </div>
 
