@@ -24,8 +24,6 @@ import {
   Plus,
   Check,
   Loader2,
-  Send,
-  Sparkles,
   ChevronRight,
   ExternalLink,
   Star,
@@ -54,7 +52,7 @@ import {
   toSafeNumber,
 } from "@/lib/marketApi";
 import { cn } from "@/lib/utils";
-import { ANALYST_SYSTEM_PROMPT, requestAiChat, toAiMessages } from "@/lib/aiChat";
+import StrategyRead from "@/components/StrategyRead";
 import { useIntradaySeries } from "@/hooks/useDelayedPrice";
 
 const stockNames: Record<string, string> = {
@@ -95,15 +93,10 @@ const StockDetail = () => {
   const [quantity, setQuantity] = useState("1");
   const [isAdding, setIsAdding] = useState(false);
   const [period, setPeriod] = useState<TimePeriod>("1Y");
-  const [chatInput, setChatInput] = useState("");
   const [purposeAlignment, setPurposeAlignment] = useState<{ aligned: string; reason: string } | null>(null);
   const [similarRegret, setSimilarRegret] = useState<Regret | null>(null);
   const [userRegrets, setUserRegrets] = useState<Regret[]>([]);
   const [portfolioItemId, setPortfolioItemId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<{ role: "ai" | "user"; text: string }[]>([]);
-  const [chatThinking, setChatThinking] = useState(false);
-  const [initialAnalysis, setInitialAnalysis] = useState<string | null>(null);
-  const [initialAnalysisLoading, setInitialAnalysisLoading] = useState(false);
   const [quoteData, setQuoteData] = useState<MarketQuoteItem | null>(null);
   const [priceData, setPriceData] = useState<PricePoint[]>([]);
   const [yearRange, setYearRange] = useState<{ high: number | null; low: number | null }>({ high: null, low: null });
@@ -132,34 +125,6 @@ const StockDetail = () => {
   const score = user ? 78 : 72;
   const scoreLabel = score >= 80 ? "Strong Buy" : score >= 60 ? "Buy" : score >= 40 ? "Hold" : "Sell";
 
-  const stockContext = useMemo(() => {
-    const lines = [
-      `Symbol: ${sym}`,
-      name !== sym ? `Company: ${name}` : null,
-      quoteData?.type ? `Security type: ${quoteData.type}` : null,
-      quoteData?.industry ? `Industry: ${quoteData.industry}` : null,
-      quoteData?.primary_exchange ? `Exchange: ${quoteData.primary_exchange}` : null,
-      quoteData?.as_of_date ? `Data as of: ${quoteData.as_of_date}` : null,
-      last != null ? `Price: $${last.toFixed(2)}` : null,
-      changePct !== 0 ? `Period change (${period}): ${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` : null,
-      yearRange.high != null ? `52-week high: $${yearRange.high.toFixed(2)}` : null,
-      yearRange.low != null ? `52-week low: $${yearRange.low.toFixed(2)}` : null,
-      quoteData?.volume != null ? `Volume: ${quoteData.volume.toLocaleString()}` : null,
-      quoteData?.market_cap != null ? `Market cap: ${formatMarketCap(quoteData.market_cap)}` : null,
-      `TradLyte score: ${score}/100 (${scoreLabel})`,
-      isInPortfolio ? "Status: already in user's portfolio" : null,
-    ];
-    if (news.length > 0) {
-      lines.push(
-        `Recent headlines:\n${news
-          .slice(0, 4)
-          .map((n) => `- ${n.title}${n.source ? ` (${n.source})` : ""}`)
-          .join("\n")}`,
-      );
-    }
-    return lines.filter(Boolean).join("\n");
-  }, [sym, name, quoteData, last, changePct, period, yearRange, score, scoreLabel, isInPortfolio, news]);
-
   const fundamentals = useMemo(
     () => [
       { label: "Open", value: formatCurrency(toSafeNumber(quoteData?.open)), delta: "today", up: true },
@@ -171,13 +136,6 @@ const StockDetail = () => {
     ],
     [quoteData, yearRange],
   );
-
-  const quickPrompts = [
-    "Is this a good entry point?",
-    "How does it fit my portfolio?",
-    "What are the risks?",
-    "Compare with peers",
-  ];
 
   useEffect(() => {
     if (!symbol) navigate("/dashboard");
@@ -281,50 +239,6 @@ const StockDetail = () => {
     hasRegretForSymbol(userRegrets, sym);
 
   useEffect(() => {
-    if (!user || marketLoading || !quoteData) {
-      setInitialAnalysis(null);
-      return;
-    }
-
-    let cancelled = false;
-    const loadInitial = async () => {
-      setInitialAnalysisLoading(true);
-      setInitialAnalysis(null);
-      try {
-        const text = await requestAiChat({
-          system: ANALYST_SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `Give a brief opening take on this stock for a logged-in investor. Context:\n${stockContext}`,
-                },
-              ],
-            },
-          ],
-        });
-        if (!cancelled) setInitialAnalysis(text);
-      } catch (e) {
-        console.error("Stock AI analysis failed:", e);
-        if (!cancelled) {
-          setInitialAnalysis(
-            `${sym} scores ${score}/100 — a ${scoreLabel}. Ask a question below for a personalized read.`,
-          );
-        }
-      } finally {
-        if (!cancelled) setInitialAnalysisLoading(false);
-      }
-    };
-
-    loadInitial();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, sym, stockContext, marketLoading, quoteData, score, scoreLabel]);
-
-  useEffect(() => {
     if (!user || !symbol) {
       setWatched(false);
       return;
@@ -381,46 +295,6 @@ const StockDetail = () => {
     setBuyInPrice("");
     setQuantity("1");
     toast.success(`${symbol} added to your portfolio!`);
-  };
-
-  const sendMessage = async () => {
-    if (!chatInput.trim() || chatThinking) return;
-    if (!user) {
-      toast.error("Sign in to chat with TradLyte AI");
-      return;
-    }
-
-    const q = chatInput.trim();
-    setChatInput("");
-    const nextHistory = [...messages, { role: "user" as const, text: q }];
-    setMessages(nextHistory);
-    setChatThinking(true);
-
-    try {
-      const text = await requestAiChat({
-        system: ANALYST_SYSTEM_PROMPT,
-        messages: [
-          ...toAiMessages(nextHistory.slice(0, -1)),
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Stock context:\n${stockContext}\n\nQuestion: ${q}`,
-              },
-            ],
-          },
-        ],
-      });
-      setMessages((m) => [...m, { role: "ai", text }]);
-    } catch (e) {
-      console.error("AI chat failed:", e);
-      toast.error("TradLyte AI is unavailable right now");
-      setMessages((m) => m.slice(0, -1));
-      setChatInput(q);
-    } finally {
-      setChatThinking(false);
-    }
   };
 
   const up = change >= 0;
@@ -710,77 +584,8 @@ const StockDetail = () => {
 
         <div className="my-7 h-px w-full bg-border-strong" />
 
-        {/* AI card */}
-        <div className="flex flex-col gap-5 rounded-2xl border border-border-subtle bg-card p-7">
-          <div className="flex items-center gap-3">
-            <span className="flex h-[38px] w-[38px] items-center justify-center rounded-md bg-ink text-white">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <div>
-              <h3 className="font-serif text-lg font-medium text-fg-primary">Tradlyte AI analyst</h3>
-              <p className="font-cap text-xs text-fg-muted">Grounded in your portfolio &amp; purpose</p>
-            </div>
-          </div>
-          <div className="max-w-[680px] rounded-2xl rounded-tl-sm bg-surface-sunken px-[18px] py-4 text-[15px] leading-relaxed text-fg-secondary">
-            {!user ? (
-              <>Sign in to get a TradLyte AI read on {sym}.</>
-            ) : initialAnalysisLoading ? (
-              <span className="inline-flex items-center gap-2 font-cap text-sm text-fg-muted">
-                <Loader2 className="h-4 w-4 animate-spin" /> Reading {sym}…
-              </span>
-            ) : (
-              initialAnalysis ??
-              `${sym} scores ${score}/100 — a ${scoreLabel}. Ask a question below for a personalized read.`
-            )}
-          </div>
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={cn(
-                "max-w-[680px] rounded-2xl px-[18px] py-4 text-[15px] leading-relaxed",
-                m.role === "user"
-                  ? "ml-auto rounded-tr-sm bg-ink text-white"
-                  : "rounded-tl-sm bg-surface-sunken text-fg-secondary",
-              )}
-            >
-              {m.text}
-            </div>
-          ))}
-          {chatThinking && (
-            <div className="max-w-[680px] rounded-2xl rounded-tl-sm bg-surface-sunken px-[18px] py-4 text-[15px] text-fg-muted">
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Thinking…
-              </span>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2.5">
-            {quickPrompts.map((q) => (
-              <button
-                key={q}
-                onClick={() => setChatInput(q)}
-                className="rounded-full border border-border-strong bg-card px-3.5 py-2 font-cap text-[13px] text-fg-secondary hover:bg-surface-sunken"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3 rounded-full border border-border-strong bg-surface-primary py-1.5 pl-5 pr-1.5">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder={`Ask anything about ${sym}…`}
-              className="h-9 flex-1 bg-transparent text-[15px] outline-none placeholder:text-fg-muted"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={chatThinking || !chatInput.trim()}
-              className="flex items-center gap-1.5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              <Send className="h-3.5 w-3.5" /> Send
-            </button>
-          </div>
-        </div>
+        {/* Strategy read — best fit for current conditions */}
+        <StrategyRead symbol={sym} signedIn={!!user} />
 
         <div className="my-7 h-px w-full bg-border-strong" />
 

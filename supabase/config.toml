@@ -13,6 +13,12 @@ verify_jwt = true
 [functions.polygon-proxy]
 verify_jwt = false
 
+# Strategy read — proxies the AWS serving API and caches the generated read.
+# Per-user; the strategy card only shows for signed-in users, matching the
+# rest of the read UI.
+[functions.strategy-read]
+verify_jwt = true
+
 # Admin dashboard API — per-user; requires session JWT. The function itself
 # enforces the admin email allow-list before any service-role work.
 [functions.admin-api]
