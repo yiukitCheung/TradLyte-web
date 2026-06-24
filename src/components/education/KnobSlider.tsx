@@ -55,10 +55,10 @@ export default function KnobSlider({ label, frac, onFrac }: KnobSliderProps) {
         onKeyDown={onKeyDown}
         className="relative flex h-9 cursor-pointer touch-none items-center"
       >
-        <div className="absolute left-0 right-0 h-1.5 rounded-full bg-surface-sunken" />
-        <div className="absolute left-0 h-1.5 rounded-full bg-gold" style={{ width: `${pct}%` }} />
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 rounded-full bg-surface-sunken" />
+        <div className="absolute top-1/2 -translate-y-1/2 left-0 h-1.5 rounded-full bg-gold" style={{ width: `${pct}%` }} />
         <div
-          className="absolute h-6 w-6 -ml-3 rounded-full border-2 border-fg-inverse bg-gold-deep"
+          className="absolute top-1/2 -translate-y-1/2 h-6 w-6 -ml-3 rounded-full border-2 border-fg-inverse bg-gold-deep"
           style={{ left: `${pct}%` }}
         />
       </div>
