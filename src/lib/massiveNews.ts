@@ -8,6 +8,8 @@ export interface NewsListItem {
   title: string;
   source: string;
   time: string;
+  /** Raw ISO publish timestamp (for sorting by recency); empty when unknown. */
+  publishedAt: string;
   url: string;
 }
 
@@ -61,7 +63,7 @@ function normalizeArticle(raw: unknown, idx: number): NewsListItem | null {
         ? a.article_id
         : `news-${idx}`;
 
-  let url =
+  const url =
     typeof a.article_url === "string"
       ? a.article_url
       : typeof a.url === "string"
@@ -70,7 +72,7 @@ function normalizeArticle(raw: unknown, idx: number): NewsListItem | null {
           ? a.link
           : "";
 
-  let published =
+  const published =
     typeof a.published_utc === "string"
       ? a.published_utc
       : typeof a.published_at === "string"
@@ -94,6 +96,7 @@ function normalizeArticle(raw: unknown, idx: number): NewsListItem | null {
     title: title.trim(),
     source,
     time: published ? formatNewsTime(published) : "",
+    publishedAt: published,
     url,
   };
 }

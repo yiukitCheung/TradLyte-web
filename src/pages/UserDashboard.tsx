@@ -67,17 +67,16 @@ import {
   fetchDashboardPicks,
   fetchMarketQuote,
   fetchOhlcvSeries,
-  fetchMarketNews,
   type DashboardIndex,
   type TopPickRow,
   type PickReturnHorizon,
-  type MarketNewsItem,
   type PricePoint,
   type TimePeriod,
   formatPickReturn,
   formatScanDateShort,
   pickReturnHorizonLabel,
 } from "@/lib/marketApi";
+import { fetchMassiveNewsForTicker, type NewsListItem } from "@/lib/massiveNews";
 import {
   buildPortfolioCurve,
   splitWinnersLosers,
@@ -218,7 +217,7 @@ const UserDashboard = () => {
   // The user's stated purpose (from profiles), to remind them why they trade.
   const [purposeStatement, setPurposeStatement] = useState<string | null>(null);
   // Portfolio-relevant headlines for the user's held symbols.
-  const [news, setNews] = useState<Array<MarketNewsItem & { symbol: string }>>([]);
+  const [news, setNews] = useState<Array<NewsListItem & { symbol: string }>>([]);
   const [newsLoading, setNewsLoading] = useState(false);
   // Real portfolio value curve over the selected window.
   const [chartPeriod, setChartPeriod] = useState<TimePeriod>("1Y");
@@ -434,7 +433,7 @@ const UserDashboard = () => {
           .map((h) => h.symbol);
         const perSymbol = await Promise.all(
           symbols.map(async (symbol) => {
-            const items = await fetchMarketNews(symbol, controller.signal);
+            const items = await fetchMassiveNewsForTicker(symbol, { signal: controller.signal });
             return items.slice(0, 4).map((item) => ({ ...item, symbol }));
           }),
         );

@@ -45,12 +45,12 @@ import {
   type PricePoint,
   fetchMarketQuote,
   fetchOhlcvSeries,
-  fetchMarketNews,
   compute52WeekRange,
   formatCurrency,
   formatMarketCap,
   toSafeNumber,
 } from "@/lib/marketApi";
+import { fetchMassiveNewsForTicker } from "@/lib/massiveNews";
 import { cn } from "@/lib/utils";
 import StrategyRead from "@/components/StrategyRead";
 import { useIntradaySeries } from "@/hooks/useDelayedPrice";
@@ -146,7 +146,7 @@ const StockDetail = () => {
     const loadNews = async () => {
       setNewsLoading(true);
       try {
-        const items = await fetchMarketNews(symbol, controller.signal);
+        const items = await fetchMassiveNewsForTicker(symbol, { signal: controller.signal });
         setNews(items);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
