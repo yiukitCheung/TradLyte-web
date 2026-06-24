@@ -244,7 +244,7 @@ export default function IndicatorPlayground({ lesson, onComplete, onCtaToLab }: 
       {/* Chart area — ref used for ResizeObserver width measurement */}
       <div
         ref={chartDivRef}
-        className="relative rounded-xl overflow-hidden mb-6 bg-surface-sunken"
+        className="relative rounded-xl overflow-hidden mb-6 bg-background"
         style={{ minHeight: totalH }}
       >
         {chartW > 0 && paths && (
@@ -314,7 +314,7 @@ export default function IndicatorPlayground({ lesson, onComplete, onCtaToLab }: 
                 />
                 <path
                   d={paths.bands.middle}
-                  stroke="hsl(var(--fg-secondary))"
+                  stroke="hsl(var(--fg-muted))"
                   strokeWidth={1}
                   fill="none"
                   strokeDasharray="3 4"
