@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Pencil, MapPin, Calendar, Check, Wallet, User as UserIcon } from "lucide-react";
+import { Pencil, MapPin, Calendar, Check, Wallet, User as UserIcon, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import FinancialHealthTab from "@/components/financial/FinancialHealthTab";
@@ -80,6 +80,12 @@ const Profile = () => {
             <button className="flex items-center gap-2 rounded-full border border-border-strong bg-card px-4.5 py-2.5 text-sm font-medium text-fg-secondary hover:bg-surface-sunken">
               <Pencil className="h-3.5 w-3.5" /> Edit profile
             </button>
+            <Link
+              to="/learn"
+              className="flex items-center gap-2 rounded-full border border-border-strong bg-card px-4.5 py-2.5 text-sm font-medium text-fg-secondary hover:bg-surface-sunken"
+            >
+              <FlaskConical className="h-3.5 w-3.5" /> Indicator Lab
+            </Link>
             <span className="rounded-full bg-ink px-4 py-2 font-cap text-sm font-medium text-gold">Level 4 · Steady Hand</span>
           </div>
         </div>
