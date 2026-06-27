@@ -1,70 +1,95 @@
-import { cn } from "@/lib/utils";
-import { ArrowRight, ChevronLeft } from "lucide-react";
-import type { StrategyDraft, MaType, SetupKind } from "@/lib/strategyDraft";
-import { CANDLE_PATTERNS, suggestedMaPeriods, clampMaPeriod } from "@/lib/strategyDraft";
 import {
-  CandleVisual,
-  CandlePatternVisual,
-  CANDLE_PATTERN_META,
-  CrossoverVisual,
-  ExitVisual,
-  OpenMarketVisual,
-  PriceCrossVisual,
-  RsiVisual,
-} from "./StrategyLabVisuals";
+  Ban,
+  Gauge,
+  TrendingUp,
+  Spline,
+  Waves,
+  LineChart,
+  ChevronsUpDown,
+  Vibrate,
+  SlidersHorizontal,
+  ArrowUpDown,
+  Target,
+  ShieldAlert,
+  MoveUpRight,
+  Clock,
+  Repeat,
+  Layers,
+  Zap,
+  CandlestickChart,
+  Crosshair,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type {
+  StrategyDraft,
+  MaType,
+  IndicatorId,
+  CompareOperator,
+  ConditionOperand,
+  ExitRuleSpec,
+  ExitLeafKind,
+} from "@/lib/strategyDraft";
+import {
+  CANDLE_PATTERNS,
+  suggestedMaPeriods,
+  clampMaPeriod,
+  INDICATORS,
+  indicatorMeta,
+  defaultSetupCondition,
+  SETUP_TILES,
+  TIMEFRAMES,
+  timeframeLabel,
+  isCoarserOrEqual,
+} from "@/lib/strategyDraft";
+import TermInfo from "./TermInfo";
+import { CandlePatternVisual, CANDLE_PATTERN_META, CrossoverVisual, RsiVisual } from "./StrategyLabVisuals";
 
 type PatchSetup = (p: Partial<StrategyDraft["setup"]>) => void;
 type PatchTrigger = (p: Partial<StrategyDraft["trigger"]>) => void;
 type PatchExit = (p: Partial<StrategyDraft["exit"]>) => void;
 
-const ChoiceCard = ({
-  selected,
-  onClick,
-  title,
-  description,
-  visual,
-  className,
-  delay = 0,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  title: string;
-  description: string;
-  visual?: React.ReactNode;
-  className?: string;
-  delay?: number;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    style={{ animationDelay: `${delay}ms` }}
-    className={cn(
-      "group stagger-fade flex w-full flex-col items-start gap-6 rounded-3xl border bg-card p-8 text-left transition-all duration-300",
-      selected
-        ? "border-2 border-gold shadow-[0_8px_40px_-12px_hsl(var(--accent)/0.35)]"
-        : "border-border-subtle hover:-translate-y-0.5 hover:border-border-strong hover:shadow-sm",
-      className,
-    )}
-  >
-    {visual && (
-      <div className={cn("transition-transform duration-500", selected && "scale-105")}>{visual}</div>
-    )}
-    <div className="flex flex-col gap-2">
-      <span className="font-serif text-xl font-medium text-fg-primary md:text-2xl">{title}</span>
-      <span className="max-w-md text-[15px] leading-relaxed text-fg-secondary">{description}</span>
-    </div>
-  </button>
-);
+const OPERATORS: { value: CompareOperator; label: string }[] = [
+  { value: ">", label: "is above" },
+  { value: "<", label: "is below" },
+  { value: ">=", label: "is at or above" },
+  { value: "<=", label: "is at or below" },
+  { value: "CROSS_ABOVE", label: "crosses above" },
+  { value: "CROSS_BELOW", label: "crosses below" },
+];
 
-const Chip = ({
-  label,
-  selected,
-  onClick,
-}: {
-  label: string;
-  selected: boolean;
-  onClick: () => void;
-}) => (
+const SETUP_ICONS: Record<string, LucideIcon> = {
+  none: Ban,
+  rsi: Gauge,
+  trend: TrendingUp,
+  EMA: Spline,
+  MACD: Waves,
+  SMA: LineChart,
+  BB: ChevronsUpDown,
+  STOCH: Gauge,
+  ATR: Vibrate,
+  custom: SlidersHorizontal,
+};
+
+const EXIT_ICONS: Record<string, LucideIcon> = {
+  bracket: ArrowUpDown,
+  take_profit: Target,
+  stop_loss: ShieldAlert,
+  trailing: MoveUpRight,
+  time: Clock,
+  death_cross: Repeat,
+  indicator_cross: Gauge,
+  stack: Layers,
+};
+
+const selectCls = "rounded-xl border border-border-strong bg-card px-3 py-2.5 text-[15px] text-fg-primary outline-none focus:border-ink";
+const numCls = "w-24 rounded-xl border border-border-strong bg-card px-3 py-2.5 text-center font-serif text-lg text-fg-primary outline-none focus:border-ink";
+
+// ---------------------------------------------------------------------------
+// Shared bits
+// ---------------------------------------------------------------------------
+
+const Chip = ({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) => (
   <button
     type="button"
     onClick={onClick}
@@ -77,422 +102,416 @@ const Chip = ({
   </button>
 );
 
-const SectionReveal = ({ children, show }: { children: React.ReactNode; show: boolean }) =>
-  show ? <div className="animate-slide-in flex flex-col gap-8">{children}</div> : null;
-
-export function GuidedSetupStep({
-  draft,
-  patchSetup,
-  onContinue,
-  canContinue,
+/** A compact, uniform grid tile — icon + label, with an inline explainer. */
+const Tile = ({
+  selected,
+  onClick,
+  label,
+  Icon,
+  term,
 }: {
-  draft: StrategyDraft;
-  patchSetup: PatchSetup;
-  onContinue: () => void;
-  canContinue: boolean;
-}) {
-  const isRsi = draft.setup.mode === "indicator" && draft.setup.kind === "rsi";
-  const isMaTrend = draft.setup.mode === "indicator" && draft.setup.kind === "ma_crossover";
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  Icon?: LucideIcon;
+  term?: string;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={selected}
+    className={cn(
+      "group relative flex min-h-[96px] flex-col items-center justify-center gap-2.5 rounded-2xl border bg-card px-2 py-4 text-center transition-all duration-200",
+      selected
+        ? "border-2 border-gold bg-gold/[0.04] shadow-[0_6px_24px_-16px_hsl(var(--accent)/0.5)]"
+        : "border-border-subtle hover:-translate-y-0.5 hover:border-border-strong",
+    )}
+  >
+    {term && (
+      <span className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
+        <TermInfo termKey={term} />
+      </span>
+    )}
+    {Icon && (
+      <span
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+          selected ? "bg-gold/15 text-gold-deep" : "bg-surface-sunken text-fg-secondary group-hover:text-fg-primary",
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+      </span>
+    )}
+    <span className="text-[12.5px] font-medium leading-tight text-fg-primary">{label}</span>
+  </button>
+);
 
-  const maSideEditor = (side: "fast" | "slow") => {
-    const isFast = side === "fast";
-    const typeKey = isFast ? "fastType" : "slowType";
-    const periodKey = isFast ? "fastPeriod" : "slowPeriod";
-    const maType = draft.setup[typeKey];
-    const period = draft.setup[periodKey];
-    return (
-      <div className="flex flex-col gap-4">
-        <span className="font-cap text-xs uppercase tracking-wide text-fg-muted">
-          {isFast ? "Fast" : "Slow"} average
-        </span>
-        <div className="flex flex-wrap gap-2">
-          {(["EMA", "SMA"] as MaType[]).map((t) => (
-            <Chip
-              key={t}
-              label={t}
-              selected={maType === t}
-              onClick={() => patchSetup({ [typeKey]: t })}
-            />
+const EditorShell = ({ children }: { children: React.ReactNode }) => (
+  <div className="animate-slide-in rounded-2xl border border-border-subtle bg-surface-sunken/50 p-6">{children}</div>
+);
+
+// ---------------------------------------------------------------------------
+// General condition editor (shared by all indicator setup tiles)
+// ---------------------------------------------------------------------------
+
+function OperandEditor({
+  operand,
+  onChange,
+  allowPrice,
+}: {
+  operand: ConditionOperand;
+  onChange: (o: ConditionOperand) => void;
+  allowPrice?: boolean;
+}) {
+  const meta = indicatorMeta(operand.indicator);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {allowPrice ? (
+        <select
+          value={operand.kind === "price" ? "price" : operand.indicator}
+          onChange={(e) =>
+            e.target.value === "price"
+              ? onChange({ ...operand, kind: "price" })
+              : onChange({ ...operand, kind: "indicator", indicator: e.target.value as IndicatorId })
+          }
+          className={selectCls}
+        >
+          <option value="price">Price (close)</option>
+          {INDICATORS.map((ind) => (
+            <option key={ind.id} value={ind.id}>{ind.label}</option>
           ))}
-        </div>
-        <div className="flex items-center gap-3">
+        </select>
+      ) : (
+        <select
+          value={operand.indicator}
+          onChange={(e) => onChange({ ...operand, kind: "indicator", indicator: e.target.value as IndicatorId })}
+          className={selectCls}
+        >
+          {INDICATORS.map((ind) => (
+            <option key={ind.id} value={ind.id}>{ind.label}</option>
+          ))}
+        </select>
+      )}
+      {operand.kind === "indicator" && meta.hasPeriod && (
+        <input
+          type="number"
+          min={2}
+          max={500}
+          value={operand.period}
+          onChange={(e) => onChange({ ...operand, period: clampMaPeriod(Number(e.target.value)) })}
+          className={numCls}
+        />
+      )}
+      {operand.kind === "indicator" && meta.outputs && (
+        <select value={operand.output} onChange={(e) => onChange({ ...operand, output: e.target.value })} className={selectCls}>
+          {meta.outputs.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+function ConditionBuilder({ draft, patchSetup }: { draft: StrategyDraft; patchSetup: PatchSetup }) {
+  const cond = draft.setup.condition ?? defaultSetupCondition();
+  const setCond = (next: Partial<typeof cond>) =>
+    patchSetup({ mode: "indicator", kind: "indicator", condition: { ...cond, ...next } });
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="font-cap text-xs uppercase tracking-wide text-fg-muted">Enter when</span>
+      <OperandEditor operand={cond.left} onChange={(left) => setCond({ left })} allowPrice />
+      <select value={cond.operator} onChange={(e) => setCond({ operator: e.target.value as CompareOperator })} className={cn(selectCls, "w-fit")}>
+        {OPERATORS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={cond.right.kind === "value" ? "value" : "indicator"}
+          onChange={(e) =>
+            setCond({ right: e.target.value === "value" ? { ...cond.right, kind: "value" } : { ...cond.right, kind: "indicator" } })
+          }
+          className={selectCls}
+        >
+          <option value="value">a number</option>
+          <option value="indicator">an indicator</option>
+        </select>
+        {cond.right.kind === "value" ? (
           <input
             type="number"
-            min={2}
-            max={500}
-            value={period}
-            onChange={(e) => patchSetup({ [periodKey]: clampMaPeriod(Number(e.target.value)) })}
-            className="w-24 rounded-xl border border-border-strong bg-card px-4 py-3 text-center font-serif text-xl text-fg-primary outline-none focus:border-ink"
+            value={cond.right.value}
+            onChange={(e) => setCond({ right: { ...cond.right, kind: "value", value: Number(e.target.value) } })}
+            className={numCls}
           />
-          <span className="font-cap text-sm text-fg-muted">days</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {suggestedMaPeriods(maType).map((p) => (
-            <Chip
-              key={p}
-              label={`${p}`}
-              selected={period === p}
-              onClick={() => patchSetup({ [periodKey]: p })}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-12 py-4">
-      <div className="flex flex-col gap-4 text-center">
-        <p className="font-cap text-xs uppercase tracking-[0.2em] text-gold-deep">Step 1 · Your lens</p>
-        <h2 className="font-serif text-3xl font-medium text-fg-primary md:text-4xl">
-          What market regime should qualify?
-        </h2>
-        <p className="mx-auto max-w-lg text-[17px] leading-relaxed text-fg-secondary">
-          Setup filters the environment — only days when this condition is true can lead to a trade.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-6">
-        <ChoiceCard
-          selected={draft.setup.mode === "none"}
-          onClick={() => patchSetup({ mode: "none" })}
-          title="No filter"
-          description="Every day is eligible. Your entry signal alone decides when to buy."
-          visual={<OpenMarketVisual active={draft.setup.mode === "none"} />}
-        />
-        <ChoiceCard
-          selected={isRsi}
-          onClick={() =>
-            patchSetup({
-              mode: "indicator",
-              kind: "rsi" as SetupKind,
-              indicator: "RSI",
-              period: 14,
-              operator: ">",
-              threshold: 50,
-            })
-          }
-          title="Momentum check (RSI)"
-          description="Only trade when RSI confirms strength — e.g. above 50 on a daily chart."
-          visual={<RsiVisual level={draft.setup.threshold} active={isRsi} />}
-          delay={90}
-        />
-        <ChoiceCard
-          selected={isMaTrend}
-          onClick={() =>
-            patchSetup({
-              mode: "indicator",
-              kind: "ma_crossover" as SetupKind,
-              fastType: "EMA",
-              fastPeriod: 8,
-              slowType: "EMA",
-              slowPeriod: 21,
-            })
-          }
-          title="Trend filter (moving averages)"
-          description="Only trade when the fast average sits above the slow — an uptrend regime."
-          visual={<CrossoverVisual active={isMaTrend} />}
-          delay={180}
-        />
-      </div>
-
-      <SectionReveal show={isRsi}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-10">
-          <p className="font-cap text-xs uppercase tracking-[0.16em] text-fg-muted">RSI condition</p>
-          <p className="mt-3 font-serif text-2xl text-fg-primary">When is momentum strong enough?</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {[
-              { label: "Balanced (above 50)", threshold: 50, op: ">" as const },
-              { label: "Cautious (above 55)", threshold: 55, op: ">" as const },
-              { label: "Aggressive (above 40)", threshold: 40, op: ">" as const },
-            ].map((opt) => (
-              <Chip
-                key={opt.label}
-                label={opt.label}
-                selected={draft.setup.threshold === opt.threshold && draft.setup.operator === opt.op}
-                onClick={() => patchSetup({ threshold: opt.threshold, operator: opt.op, period: 14 })}
-              />
-            ))}
-          </div>
-          <div className="mt-10 flex justify-center">
-            <RsiVisual level={draft.setup.threshold} active />
-          </div>
-        </div>
-      </SectionReveal>
-
-      <SectionReveal show={isMaTrend}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-10">
-          <p className="font-serif text-2xl text-fg-primary">Shape your trend filter</p>
-          <p className="mt-2 text-[15px] text-fg-secondary">
-            Fast average must stay above the slow — pick any periods (2–500 days).
-          </p>
-          <div className="mt-8 grid gap-10 md:grid-cols-2">
-            {maSideEditor("fast")}
-            {maSideEditor("slow")}
-          </div>
-          <div className="mt-10 flex justify-center">
-            <CrossoverVisual active />
-          </div>
-        </div>
-      </SectionReveal>
-
-      <div className="flex justify-end pt-4">
-        <button
-          type="button"
-          disabled={!canContinue}
-          onClick={onContinue}
-          className="group flex items-center gap-3 rounded-full bg-ink px-8 py-4 text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          Continue <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-        </button>
+        ) : (
+          <OperandEditor operand={cond.right} onChange={(right) => setCond({ right })} />
+        )}
       </div>
     </div>
   );
 }
 
-export function GuidedTriggerStep({
+function MultiTimeframe({ draft, patchSetup }: { draft: StrategyDraft; patchSetup: PatchSetup }) {
+  const base = draft.timeframe;
+  const coarser = TIMEFRAMES.filter((tf) => isCoarserOrEqual(tf, base) && tf !== base);
+  const on = Boolean(draft.setup.timeframe && draft.setup.timeframe !== base);
+  if (draft.setup.mode === "none") return null;
+  return (
+    <div className="mt-5 flex flex-col gap-3 border-t border-border-subtle pt-5">
+      <label className="flex items-center gap-2.5">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => patchSetup({ timeframe: e.target.checked ? coarser[0] ?? base : undefined })}
+          className="h-4 w-4 accent-[hsl(var(--accent-ink))]"
+          disabled={coarser.length === 0}
+        />
+        <span className="flex items-center gap-1.5 font-cap text-sm font-medium text-fg-primary">
+          Check this on a higher timeframe <TermInfo termKey="multiTimeframe" />
+        </span>
+      </label>
+      {coarser.length === 0 ? (
+        <p className="text-[13px] text-fg-muted">Pick a finer chart timeframe to enable this.</p>
+      ) : (
+        on && (
+          <div className="flex flex-wrap gap-2">
+            {coarser.map((tf) => (
+              <Chip key={tf} label={timeframeLabel(tf)} selected={draft.setup.timeframe === tf} onClick={() => patchSetup({ timeframe: tf })} />
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Setup panel
+// ---------------------------------------------------------------------------
+
+export function SetupPanel({
   draft,
-  patchTrigger,
-  onBack,
-  onContinue,
+  patchSetup,
+  activeTile,
+  onSelectTile,
 }: {
   draft: StrategyDraft;
-  patchTrigger: PatchTrigger;
-  onBack: () => void;
-  onContinue: () => void;
+  patchSetup: PatchSetup;
+  activeTile: string;
+  onSelectTile: (key: string) => void;
 }) {
-  const mode = draft.trigger.mode;
+  const simple = SETUP_TILES.filter((t) => t.group === "simple");
+  const more = SETUP_TILES.filter((t) => t.group === "more");
 
-  const triggerOptions: Array<{
-    id: StrategyDraft["trigger"]["mode"];
-    title: string;
-    description: string;
-    visual: React.ReactNode;
-    apply: Partial<StrategyDraft["trigger"]>;
-  }> = [
-    {
-      id: "none",
-      title: "No extra entry rule",
-      description: "When your lens passes, enter on the next green candle — simple and permissive.",
-      visual: <OpenMarketVisual active={mode === "none"} />,
-      apply: { mode: "none" },
-    },
-    {
-      id: "candle_pattern",
-      title: "A candle pattern appears",
-      description: "Wait for a recognizable bullish shape — engulfing, hammer, morning star, and more.",
-      visual: <CandleVisual active={mode === "candle_pattern"} />,
-      apply: { mode: "candle_pattern", pattern: "BULLISH_ENGULFING" },
-    },
-    {
-      id: "price_level",
-      title: "Price crosses a level",
-      description: "Enter when price breaks above (or below) a dollar level you set.",
-      visual: <PriceCrossVisual active={mode === "price_level"} />,
-      apply: { mode: "price_level", priceLevel: 100, priceDirection: "ABOVE" },
-    },
-  ];
+  const editor = () => {
+    if (activeTile === "none") {
+      return (
+        <EditorShell>
+          <p className="text-[15px] leading-relaxed text-fg-secondary">Every day qualifies — your entry signal alone decides when to buy.</p>
+        </EditorShell>
+      );
+    }
+    if (activeTile === "rsi") {
+      return (
+        <EditorShell>
+          <p className="font-serif text-xl text-fg-primary">When is momentum strong enough?</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            {[
+              { label: "Balanced (above 50)", threshold: 50 },
+              { label: "Cautious (above 55)", threshold: 55 },
+              { label: "Aggressive (above 40)", threshold: 40 },
+            ].map((opt) => (
+              <Chip
+                key={opt.label}
+                label={opt.label}
+                selected={draft.setup.threshold === opt.threshold && draft.setup.operator === ">"}
+                onClick={() => patchSetup({ threshold: opt.threshold, operator: ">", period: 14 })}
+              />
+            ))}
+          </div>
+          <div className="mt-7 flex justify-center"><RsiVisual level={draft.setup.threshold} active /></div>
+          <MultiTimeframe draft={draft} patchSetup={patchSetup} />
+        </EditorShell>
+      );
+    }
+    if (activeTile === "trend") {
+      const maSide = (side: "fast" | "slow") => {
+        const isFast = side === "fast";
+        const typeKey = isFast ? "fastType" : "slowType";
+        const periodKey = isFast ? "fastPeriod" : "slowPeriod";
+        const maType = draft.setup[typeKey];
+        const period = draft.setup[periodKey];
+        return (
+          <div className="flex flex-col gap-3">
+            <span className="font-cap text-xs uppercase tracking-wide text-fg-muted">{isFast ? "Fast" : "Slow"} average</span>
+            <div className="flex flex-wrap gap-2">
+              {(["EMA", "SMA"] as MaType[]).map((t) => (
+                <Chip key={t} label={t} selected={maType === t} onClick={() => patchSetup({ [typeKey]: t })} />
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <input type="number" min={2} max={500} value={period} onChange={(e) => patchSetup({ [periodKey]: clampMaPeriod(Number(e.target.value)) })} className={numCls} />
+              <span className="font-cap text-sm text-fg-muted">days</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suggestedMaPeriods(maType).map((p) => (
+                <Chip key={p} label={`${p}`} selected={period === p} onClick={() => patchSetup({ [periodKey]: p })} />
+              ))}
+            </div>
+          </div>
+        );
+      };
+      return (
+        <EditorShell>
+          <p className="font-serif text-xl text-fg-primary">Shape your trend filter</p>
+          <p className="mt-1.5 text-[14px] text-fg-secondary">Fast average must stay above the slow — an uptrend regime.</p>
+          <div className="mt-6 grid gap-8 sm:grid-cols-2">{maSide("fast")}{maSide("slow")}</div>
+          <div className="mt-7 flex justify-center"><CrossoverVisual active /></div>
+          <MultiTimeframe draft={draft} patchSetup={patchSetup} />
+        </EditorShell>
+      );
+    }
+    return (
+      <EditorShell>
+        <ConditionBuilder draft={draft} patchSetup={patchSetup} />
+        <MultiTimeframe draft={draft} patchSetup={patchSetup} />
+      </EditorShell>
+    );
+  };
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-12 py-4">
-      <div className="flex flex-col gap-4 text-center">
-        <p className="font-cap text-xs uppercase tracking-[0.2em] text-gold-deep">Step 2 · Entry signal</p>
-        <h2 className="font-serif text-3xl font-medium text-fg-primary md:text-4xl">What tells you to buy?</h2>
-        <p className="mx-auto max-w-lg text-[17px] leading-relaxed text-fg-secondary">
-          The trigger fires only when your lens is already valid — candle pattern, price break, or no extra rule.
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Start simple</p>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          {simple.map((t) => (
+            <Tile key={t.key} label={t.label} term={t.term} Icon={SETUP_ICONS[t.key]} selected={activeTile === t.key} onClick={() => onSelectTile(t.key)} />
+          ))}
+        </div>
       </div>
+      <div className="flex flex-col gap-3">
+        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">More indicators</p>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          {more.map((t) => (
+            <Tile key={t.key} label={t.label} term={t.term} Icon={SETUP_ICONS[t.key]} selected={activeTile === t.key} onClick={() => onSelectTile(t.key)} />
+          ))}
+        </div>
+      </div>
+      {editor()}
+    </div>
+  );
+}
 
-      <div className="flex flex-col gap-5">
-        {triggerOptions.map((opt, i) => (
-          <ChoiceCard
-            key={opt.id}
-            selected={mode === opt.id}
-            onClick={() => patchTrigger(opt.apply)}
-            title={opt.title}
-            description={opt.description}
-            visual={opt.visual}
-            delay={i * 70}
-          />
+// ---------------------------------------------------------------------------
+// Entry panel
+// ---------------------------------------------------------------------------
+
+export function EntryPanel({ draft, patchTrigger }: { draft: StrategyDraft; patchTrigger: PatchTrigger }) {
+  const mode = draft.trigger.mode;
+  const options: Array<{ id: StrategyDraft["trigger"]["mode"]; title: string; Icon: LucideIcon; apply: Partial<StrategyDraft["trigger"]>; term?: string }> = [
+    { id: "none", title: "On the setup edge", Icon: Zap, term: "setupEdge", apply: { mode: "none" } },
+    { id: "candle_pattern", title: "A candle pattern", Icon: CandlestickChart, term: "candlePattern", apply: { mode: "candle_pattern", pattern: "BULLISH_ENGULFING" } },
+    { id: "price_level", title: "Price crosses a level", Icon: Crosshair, term: "priceCrossover", apply: { mode: "price_level", priceLevel: 100, priceDirection: "ABOVE" } },
+  ];
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-3 gap-3">
+        {options.map((opt) => (
+          <Tile key={opt.id} label={opt.title} term={opt.term} Icon={opt.Icon} selected={mode === opt.id} onClick={() => patchTrigger(opt.apply)} />
         ))}
       </div>
 
-      <SectionReveal show={mode === "candle_pattern"}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-8 md:p-10">
-          <p className="font-serif text-2xl text-fg-primary">Which pattern?</p>
-          <p className="mt-2 text-[15px] text-fg-secondary">
-            Each shape is a different story the price told that day. Pick the one to wait for.
-          </p>
-          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {mode === "candle_pattern" && (
+        <EditorShell>
+          <p className="font-serif text-xl text-fg-primary">Which pattern?</p>
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {CANDLE_PATTERNS.map((p) => {
               const selected = draft.trigger.pattern === p.value;
               const meta = CANDLE_PATTERN_META[p.value];
-              const biasTone =
-                meta?.bias === "Bullish" ? "text-positive" : meta?.bias === "Bearish" ? "text-negative" : "text-fg-muted";
+              const tone = meta?.bias === "Bullish" ? "text-positive" : meta?.bias === "Bearish" ? "text-negative" : "text-fg-muted";
               return (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => patchTrigger({ pattern: p.value })}
                   aria-pressed={selected}
-                  className={cn(
-                    "group flex flex-col gap-3 rounded-2xl border bg-card p-4 text-left transition-all duration-200",
-                    selected
-                      ? "border-2 border-gold shadow-[0_6px_28px_-12px_hsl(var(--accent)/0.4)]"
-                      : "border-border-subtle hover:-translate-y-0.5 hover:border-border-strong",
-                  )}
+                  className={cn("flex flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-all", selected ? "border-2 border-gold" : "border-border-subtle hover:border-border-strong")}
                 >
-                  <div className="flex h-16 items-end justify-center">
-                    <CandlePatternVisual pattern={p.value} active={selected} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[15px] font-medium text-fg-primary">{p.label}</span>
-                      {meta && <span className={cn("font-cap text-[11px] font-semibold", biasTone)}>{meta.bias}</span>}
-                    </div>
-                    {meta && <span className="text-[13px] leading-snug text-fg-secondary">{meta.meaning}</span>}
+                  <div className="flex h-14 items-end justify-center"><CandlePatternVisual pattern={p.value} active={selected} /></div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[14px] font-medium text-fg-primary">{p.label}</span>
+                    {meta && <span className={cn("font-cap text-[10px] font-semibold", tone)}>{meta.bias}</span>}
                   </div>
                 </button>
               );
             })}
           </div>
-        </div>
-      </SectionReveal>
+        </EditorShell>
+      )}
 
-      <SectionReveal show={mode === "price_level"}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-10">
-          <p className="font-serif text-2xl text-fg-primary">Price level break</p>
-          <p className="mt-2 text-[15px] text-fg-secondary">Enter when price crosses the level you set.</p>
-          <div className="mt-8 flex flex-col gap-6">
+      {mode === "price_level" && (
+        <EditorShell>
+          <p className="font-serif text-xl text-fg-primary">Price level break</p>
+          <div className="mt-5 flex flex-col gap-5">
             <div className="flex flex-wrap gap-3">
               {(["ABOVE", "BELOW"] as const).map((dir) => (
-                <Chip
-                  key={dir}
-                  label={dir === "ABOVE" ? "Cross above" : "Cross below"}
-                  selected={draft.trigger.priceDirection === dir}
-                  onClick={() => patchTrigger({ priceDirection: dir })}
-                />
+                <Chip key={dir} label={dir === "ABOVE" ? "Cross above" : "Cross below"} selected={draft.trigger.priceDirection === dir} onClick={() => patchTrigger({ priceDirection: dir })} />
               ))}
             </div>
             <div className="flex items-center gap-3">
               <span className="font-cap text-sm text-fg-muted">$</span>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={draft.trigger.priceLevel}
-                onChange={(e) => patchTrigger({ priceLevel: Number(e.target.value) })}
-                className="w-full max-w-xs rounded-xl border border-border-strong bg-card px-4 py-3 font-serif text-xl text-fg-primary outline-none focus:border-ink"
-                placeholder="e.g. 150"
-              />
+              <input type="number" min={0} step={0.01} value={draft.trigger.priceLevel} onChange={(e) => patchTrigger({ priceLevel: Number(e.target.value) })} className="w-full max-w-xs rounded-xl border border-border-strong bg-card px-4 py-3 font-serif text-xl text-fg-primary outline-none focus:border-ink" placeholder="e.g. 150" />
             </div>
           </div>
-          <div className="mt-10 flex justify-center">
-            <PriceCrossVisual active />
-          </div>
-        </div>
-      </SectionReveal>
-
-      <div className="flex items-center justify-between pt-4">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 font-cap text-sm text-fg-muted hover:text-fg-primary">
-          <ChevronLeft className="h-4 w-4" /> Back
-        </button>
-        <button type="button" onClick={onContinue} className="group flex items-center gap-3 rounded-full bg-ink px-8 py-4 text-base font-semibold text-white transition-opacity hover:opacity-90">
-          Continue <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-        </button>
-      </div>
+        </EditorShell>
+      )}
     </div>
   );
 }
 
-const EXIT_OPTIONS: Array<{
-  id: StrategyDraft["exit"]["mode"];
-  title: string;
-  description: string;
-  visual: (active: boolean) => React.ReactNode;
-}> = [
-  {
-    id: "bracket",
-    title: "Target and stop together",
-    description: "A profit target above and a stop below — whichever price hits first ends the trade. The balanced default.",
-    visual: (a) => <ExitVisual kind="bracket" active={a} />,
-  },
-  {
-    id: "take_profit",
-    title: "Take profit only",
-    description: "One line above your entry — exit the moment gain reaches your target. Simple and optimistic.",
-    visual: (a) => <ExitVisual kind="take_profit" active={a} />,
-  },
-  {
-    id: "stop_loss",
-    title: "Stop loss only",
-    description: "One line below your entry — exit if loss reaches your limit. Caps the downside, lets gains run.",
-    visual: (a) => <ExitVisual kind="stop_loss" active={a} />,
-  },
-  {
-    id: "trailing",
-    title: "Trailing stop",
-    description: "The stop ratchets up as price climbs, then catches the pullback — let winners run, lock in the rise.",
-    visual: (a) => <ExitVisual kind="trailing" active={a} />,
-  },
-  {
-    id: "time",
-    title: "Time limit",
-    description: "Close after a set number of days, win or lose — the calendar decides, not the price.",
-    visual: (a) => <ExitVisual kind="time" active={a} />,
-  },
-  {
-    id: "death_cross",
-    title: "Signal flips bearish",
-    description: "Exit when the fast average crosses back below the slow — the mirror of your entry logic.",
-    visual: (a) => <ExitVisual kind="death_cross" active={a} />,
-  },
+// ---------------------------------------------------------------------------
+// Exit panel
+// ---------------------------------------------------------------------------
+
+const EXIT_TILES: Array<{ key: StrategyDraft["exit"]["mode"]; label: string; group: "common" | "advanced"; term?: string }> = [
+  { key: "bracket", label: "Target + stop", group: "common", term: "takeProfit" },
+  { key: "take_profit", label: "Take profit", group: "common", term: "takeProfit" },
+  { key: "stop_loss", label: "Stop loss", group: "common", term: "stopLoss" },
+  { key: "trailing", label: "Trailing stop", group: "common", term: "trailingStop" },
+  { key: "time", label: "Time limit", group: "common", term: "timeExit" },
+  { key: "death_cross", label: "Signal flip", group: "advanced", term: "signalFlip" },
+  { key: "indicator_cross", label: "Indicator exit", group: "advanced", term: "indicatorExit" },
+  { key: "stack", label: "Combine rules", group: "advanced" },
 ];
 
-export function GuidedExitStep({
-  draft,
-  patchExit,
-  onBack,
-  onContinue,
-  canContinue,
-}: {
-  draft: StrategyDraft;
-  patchExit: PatchExit;
-  onBack: () => void;
-  onContinue: () => void;
-  canContinue: boolean;
-}) {
+const STACK_LEAVES: { kind: ExitLeafKind; label: string; defaultPct?: number; term: string }[] = [
+  { kind: "stop_loss", label: "Stop loss", defaultPct: 5, term: "stopLoss" },
+  { kind: "take_profit", label: "Take profit", defaultPct: 10, term: "takeProfit" },
+  { kind: "trailing", label: "Trailing stop", defaultPct: 5, term: "trailingStop" },
+  { kind: "signal_flip", label: "Bearish flip", term: "signalFlip" },
+];
+
+export function ExitPanel({ draft, patchExit }: { draft: StrategyDraft; patchExit: PatchExit }) {
   const mode = draft.exit.mode;
+  const stack = draft.exit.stack ?? [];
+  const stackHas = (k: ExitLeafKind) => stack.some((r) => r.kind === k);
+  const toggleStackLeaf = (leaf: { kind: ExitLeafKind; defaultPct?: number }) => {
+    const next: ExitRuleSpec[] = stackHas(leaf.kind) ? stack.filter((r) => r.kind !== leaf.kind) : [...stack, { kind: leaf.kind, pct: leaf.defaultPct }];
+    patchExit({ mode: "stack", stack: next });
+  };
+  const setStackPct = (k: ExitLeafKind, pct: number) => patchExit({ mode: "stack", stack: stack.map((r) => (r.kind === k ? { ...r, pct } : r)) });
 
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-12 py-4">
-      <div className="flex flex-col gap-4 text-center">
-        <p className="font-cap text-xs uppercase tracking-[0.2em] text-gold-deep">Step 3 · Exit plan</p>
-        <h2 className="font-serif text-3xl font-medium text-fg-primary md:text-4xl">How should the trade end?</h2>
-        <p className="mx-auto max-w-lg text-[17px] leading-relaxed text-fg-secondary">
-          Every strategy needs an exit. Choose what closes the position — profit, loss, time, or a reversal.
-        </p>
-      </div>
+  const common = EXIT_TILES.filter((t) => t.group === "common");
+  const advanced = EXIT_TILES.filter((t) => t.group === "advanced");
 
-      <div className="flex flex-col gap-5">
-        {EXIT_OPTIONS.map((opt, i) => (
-          <ChoiceCard
-            key={opt.id}
-            selected={mode === opt.id}
-            onClick={() => patchExit({ mode: opt.id })}
-            title={opt.title}
-            description={opt.description}
-            visual={opt.visual(mode === opt.id)}
-            delay={i * 70}
-          />
-        ))}
-      </div>
-
-      <SectionReveal show={mode === "bracket" || mode === "take_profit" || mode === "stop_loss"}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-10">
+  const editor = () => {
+    if (mode === "bracket" || mode === "take_profit" || mode === "stop_loss") {
+      return (
+        <EditorShell>
           {(mode === "bracket" || mode === "take_profit") && (
-            <div className="mb-10 flex flex-col gap-4">
-              <span className="font-serif text-xl text-fg-primary">Take profit at</span>
+            <div className="mb-8 flex flex-col gap-3">
+              <span className="font-serif text-lg text-fg-primary">Take profit at</span>
               <div className="flex flex-wrap gap-3">
                 {[5, 10, 15, 20].map((v) => (
                   <Chip key={v} label={`+${v}%`} selected={draft.exit.takeProfitPct === v} onClick={() => patchExit({ takeProfitPct: v })} />
@@ -501,8 +520,8 @@ export function GuidedExitStep({
             </div>
           )}
           {(mode === "bracket" || mode === "stop_loss") && (
-            <div className="flex flex-col gap-4">
-              <span className="font-serif text-xl text-fg-primary">Stop loss at</span>
+            <div className="flex flex-col gap-3">
+              <span className="font-serif text-lg text-fg-primary">Stop loss at</span>
               <div className="flex flex-wrap gap-3">
                 {[3, 5, 8, 10].map((v) => (
                   <Chip key={v} label={`−${v}%`} selected={draft.exit.stopLossPct === v} onClick={() => patchExit({ stopLossPct: v })} />
@@ -510,44 +529,105 @@ export function GuidedExitStep({
               </div>
             </div>
           )}
-        </div>
-      </SectionReveal>
-
-      <SectionReveal show={mode === "trailing"}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-10">
-          <span className="font-serif text-xl text-fg-primary">Trail by</span>
-          <div className="mt-6 flex flex-wrap gap-3">
+        </EditorShell>
+      );
+    }
+    if (mode === "trailing") {
+      return (
+        <EditorShell>
+          <span className="font-serif text-lg text-fg-primary">Trail by</span>
+          <div className="mt-4 flex flex-wrap gap-3">
             {[2, 3, 5, 8].map((v) => (
               <Chip key={v} label={`${v}% from peak`} selected={draft.exit.trailingStopPct === v} onClick={() => patchExit({ trailingStopPct: v })} />
             ))}
           </div>
-        </div>
-      </SectionReveal>
-
-      <SectionReveal show={mode === "time"}>
-        <div className="rounded-3xl border border-border-subtle bg-surface-sunken/60 p-10">
-          <span className="font-serif text-xl text-fg-primary">Hold at most</span>
-          <div className="mt-6 flex flex-wrap gap-3">
+        </EditorShell>
+      );
+    }
+    if (mode === "time") {
+      return (
+        <EditorShell>
+          <span className="font-serif text-lg text-fg-primary">Hold at most</span>
+          <div className="mt-4 flex flex-wrap gap-3">
             {[5, 10, 20, 30].map((v) => (
               <Chip key={v} label={`${v} days`} selected={draft.exit.maxHoldingDays === v} onClick={() => patchExit({ maxHoldingDays: v })} />
             ))}
           </div>
+        </EditorShell>
+      );
+    }
+    if (mode === "death_cross") {
+      return <EditorShell><p className="text-[15px] leading-relaxed text-fg-secondary">Exit when the fast average crosses back below the slow — the mirror of a trend entry.</p></EditorShell>;
+    }
+    if (mode === "indicator_cross") {
+      return (
+        <EditorShell>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[15px] text-fg-secondary">Exit when</span>
+            <select value={draft.exit.exitIndicator ?? "RSI"} onChange={(e) => patchExit({ exitIndicator: e.target.value as "RSI" | "STOCH" })} className={selectCls}>
+              <option value="RSI">RSI</option>
+              <option value="STOCH">Stochastic</option>
+            </select>
+            <select value={draft.exit.exitDirection ?? "DOWN"} onChange={(e) => patchExit({ exitDirection: e.target.value as "UP" | "DOWN" })} className={selectCls}>
+              <option value="DOWN">crosses down through</option>
+              <option value="UP">crosses up through</option>
+            </select>
+            <input type="number" value={draft.exit.exitValue ?? 50} onChange={(e) => patchExit({ exitValue: Number(e.target.value) })} className={numCls} />
+          </div>
+        </EditorShell>
+      );
+    }
+    return (
+      <EditorShell>
+        <p className="flex items-center gap-1.5 font-serif text-lg text-fg-primary">
+          Combine rules <span className="font-cap text-xs font-normal text-fg-muted">(whichever fires first)</span>
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {STACK_LEAVES.map((leaf) => (
+            <Chip key={leaf.kind} label={leaf.label} selected={stackHas(leaf.kind)} onClick={() => toggleStackLeaf(leaf)} />
+          ))}
         </div>
-      </SectionReveal>
+        {stack.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-card p-5">
+            {stack.map((r) => {
+              const meta = STACK_LEAVES.find((l) => l.kind === r.kind);
+              if (!meta) return null;
+              if (meta.defaultPct == null) {
+                return <div key={r.kind} className="flex items-center gap-1.5 text-[15px] text-fg-secondary">{meta.label}<TermInfo termKey={meta.term} /></div>;
+              }
+              return (
+                <div key={r.kind} className="flex items-center gap-3">
+                  <span className="flex w-32 items-center gap-1.5 text-[15px] text-fg-secondary">{meta.label}<TermInfo termKey={meta.term} /></span>
+                  <input type="number" min={0} step={0.5} value={r.pct ?? meta.defaultPct} onChange={(e) => setStackPct(r.kind, Number(e.target.value))} className={numCls} />
+                  <span className="font-cap text-sm text-fg-muted">%</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </EditorShell>
+    );
+  };
 
-      <div className="flex items-center justify-between pt-4">
-        <button type="button" onClick={onBack} className="flex items-center gap-2 font-cap text-sm text-fg-muted hover:text-fg-primary">
-          <ChevronLeft className="h-4 w-4" /> Back
-        </button>
-        <button
-          type="button"
-          disabled={!canContinue}
-          onClick={onContinue}
-          className="group flex items-center gap-3 rounded-full bg-ink px-8 py-4 text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          See how it would have done <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-        </button>
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Common</p>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          {common.map((t) => (
+            <Tile key={t.key} label={t.label} term={t.term} Icon={EXIT_ICONS[t.key]} selected={mode === t.key} onClick={() => patchExit({ mode: t.key })} />
+          ))}
+        </div>
       </div>
+      <div className="flex flex-col gap-3">
+        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Advanced</p>
+        <div className="grid grid-cols-3 gap-3">
+          {advanced.map((t) => (
+            <Tile key={t.key} label={t.label} term={t.term} Icon={EXIT_ICONS[t.key]} selected={mode === t.key} onClick={() => patchExit({ mode: t.key })} />
+          ))}
+        </div>
+      </div>
+      {editor()}
     </div>
   );
 }

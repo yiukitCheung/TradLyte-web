@@ -14,6 +14,7 @@ import {
   type SavedStrategy,
 } from "@/lib/savedStrategies";
 import { formatReturnPct, formatWinRate } from "@/lib/backtestUtils";
+import { isLegacyProConfig, proConfigToDraft } from "@/lib/strategyDraft";
 
 const StrategyLibrary = () => {
   const { user, loading: authLoading } = useRequireOnboarding();
@@ -47,12 +48,9 @@ const StrategyLibrary = () => {
   }, [load]);
 
   const openInLab = (s: SavedStrategy) => {
-    const isPro = (s.draft as any)?._source === "pro";
-    if (isPro) {
-      navigate("/strategy-pro");
-    } else {
-      navigate("/strategy-builder", { state: { draft: s.draft, symbol: s.symbol ?? undefined } });
-    }
+    // Legacy Pro configs migrate into the unified Lab (crossovers → setup-edge entry).
+    const draft = isLegacyProConfig(s.draft) ? proConfigToDraft(s.draft) : s.draft;
+    navigate("/strategy-builder", { state: { draft, symbol: s.symbol ?? undefined } });
   };
 
   const handleDuplicate = async (s: SavedStrategy) => {
@@ -138,7 +136,7 @@ const StrategyLibrary = () => {
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {strategies.map((s) => {
               const ret = s.result?.total_return_pct;
-              const isPro = (s.draft as any)?._source === "pro";
+              const isPro = isLegacyProConfig(s.draft);
               return (
                 <div key={s.id} className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-card p-6">
                   <div className="flex items-start justify-between gap-3">
@@ -172,7 +170,7 @@ const StrategyLibrary = () => {
                       onClick={() => openInLab(s)}
                       className="flex flex-1 items-center justify-center gap-2 rounded-full bg-ink py-2.5 text-sm font-semibold text-white"
                     >
-                      <Play className="h-3.5 w-3.5" /> {isPro ? "Open Pro Lab" : "Open in Lab"}
+                      <Play className="h-3.5 w-3.5" /> Open in Lab
                     </button>
                     <button
                       type="button"

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import About from "./pages/About";
 import Auth from "./pages/Auth";
@@ -20,7 +20,6 @@ import Settings from "./pages/Settings";
 import Support from "./pages/Support";
 import Notifications from "./pages/Notifications";
 import Admin from "./pages/Admin";
-import StrategyPro from "./pages/StrategyPro";
 import Learn from "./pages/Learn";
 import PurposeOnboarding from "./components/onboarding/PurposeOnboarding";
 import { FinancialVaultProvider } from "./hooks/useFinancialVault";
@@ -52,7 +51,8 @@ const App = () => (
           <Route path="/support" element={<Support />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/admin" element={<Admin />} />
-          <Route path="/strategy-pro" element={<StrategyPro />} />
+          {/* /strategy-pro retired — unified into the Strategy Lab */}
+          <Route path="/strategy-pro" element={<Navigate to="/strategy-builder" replace />} />
           <Route path="/learn" element={<Learn />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
