@@ -1,11 +1,13 @@
-/** Shapes match serving `/backtest` `components`: setup, trigger, exit. */
+/** Shapes match serving `/backtest` `components`: setup, optional trigger, optional exit. */
 
 export type ComponentBlock = Record<string, unknown>;
 
 export interface StrategyComponents {
   setup: ComponentBlock;
-  trigger: ComponentBlock;
-  exit: ComponentBlock;
+  /** Omit to enter on the setup edge (BUY when setup_valid flips false→true). */
+  trigger?: ComponentBlock;
+  /** Omit to ride the position to end_of_data. */
+  exit?: ComponentBlock;
 }
 
 export interface BacktestRecipe {
@@ -16,12 +18,18 @@ export interface BacktestRecipe {
   components: StrategyComponents;
 }
 
+// Fibonacci day-bar order (kept local to avoid a cycle with strategyDraft.ts).
+const TF_ORDER = ["1d", "3d", "5d", "8d", "13d", "21d", "34d"];
+function tfRank(tf: unknown): number {
+  const i = TF_ORDER.indexOf(String(tf));
+  return i < 0 ? 0 : i;
+}
+
 function componentsFrom(recipe: StrategyComponents): StrategyComponents {
-  return {
-    setup: { ...recipe.setup },
-    trigger: { ...recipe.trigger },
-    exit: structuredCloneStructuredExit(recipe.exit),
-  };
+  const out: StrategyComponents = { setup: { ...recipe.setup } };
+  if (recipe.trigger) out.trigger = { ...recipe.trigger };
+  if (recipe.exit) out.exit = structuredCloneStructuredExit(recipe.exit);
+  return out;
 }
 
 function structuredCloneStructuredExit(exit: ComponentBlock): ComponentBlock {
@@ -36,27 +44,29 @@ function structuredCloneStructuredExit(exit: ComponentBlock): ComponentBlock {
 }
 
 /**
- * Beginner-friendly preset strategies, each validated against the live `/backtest`
+ * Beginner-friendly preset strategies, each valid against the live `/backtest`
  * endpoint. Plain-language titles + one-line "what it does" descriptions.
+ *
+ * Crossover entries live in `setup` with the trigger omitted (setup-edge entry):
+ * the API removed indicator-crossover and expression triggers.
  */
 export const BACKTEST_RECIPES: BacktestRecipe[] = [
   {
     id: "golden_cross_20_50",
     title: "The Golden Cross",
     description:
-      "The classic trend signal — when the 20-day average rises above the 50-day, the trend has turned up. Buy the next green day, protect it with a 5% stop loss.",
+      "The classic trend signal — when the 20-day average rises above the 50-day, the trend has turned up. Enter on the cross, protect it with a 5% stop loss.",
     strategy_name: "golden_cross_20_50",
     components: {
       setup: {
         type: "EXPRESSION",
         timeframe: "1d",
         expression: {
-          op: "GT",
+          op: "CROSS_ABOVE",
           left: { indicator: "SMA", params: { period: 20 } },
           right: { indicator: "SMA", params: { period: 50 } },
         },
       },
-      trigger: { type: "CANDLE_PATTERN", timeframe: "1d", pattern: "GREEN_CANDLE" },
       exit: { type: "STOP_LOSS_PCT", timeframe: "1d", value: 0.05 },
     },
   },
@@ -83,14 +93,12 @@ export const BACKTEST_RECIPES: BacktestRecipe[] = [
     id: "macd_golden_cross",
     title: "MACD Golden Cross",
     description:
-      "Momentum turning up — buy when the MACD line crosses above its signal line. Exits on a 5% stop or a 12% profit target.",
+      "Momentum turning up — enter when the MACD line crosses above its signal line. Exits on a 5% stop or a 12% profit target.",
     strategy_name: "macd_golden_cross",
     components: {
-      setup: { type: "NONE", timeframe: "1d" },
-      trigger: {
+      setup: {
         type: "EXPRESSION",
         timeframe: "1d",
-        signal_value: "BUY",
         expression: {
           op: "CROSS_ABOVE",
           left: { indicator: "MACD", output: "macd" },
@@ -111,14 +119,12 @@ export const BACKTEST_RECIPES: BacktestRecipe[] = [
     id: "ema_8_13_cross",
     title: "Fast EMA Cross (8 / 13)",
     description:
-      "An advanced, faster trend trigger — buy the moment the 8-day EMA crosses above the 13-day. Exits on a 4% stop or a 15% target.",
+      "An advanced, faster trend trigger — enter the moment the 8-day EMA crosses above the 13-day. Exits on a 4% stop or a 15% target.",
     strategy_name: "ema_8_13_cross",
     components: {
-      setup: { type: "NONE", timeframe: "1d" },
-      trigger: {
+      setup: {
         type: "EXPRESSION",
         timeframe: "1d",
-        signal_value: "BUY",
         expression: {
           op: "CROSS_ABOVE",
           left: { indicator: "EMA", params: { period: 8 } },
@@ -135,6 +141,37 @@ export const BACKTEST_RECIPES: BacktestRecipe[] = [
       },
     },
   },
+  {
+    id: "hammer_rsi_exit",
+    title: "Hammer Entry, RSI Exit",
+    description:
+      "Enter on a hammer reversal candle, then exit when RSI crosses back down through 45 — let momentum, not a fixed percentage, decide when the move is over.",
+    strategy_name: "hammer_rsi_exit",
+    components: {
+      setup: { type: "NONE", timeframe: "1d" },
+      trigger: { type: "CANDLE_PATTERN", timeframe: "1d", pattern: "HAMMER" },
+      exit: { type: "INDICATOR_CROSS", timeframe: "1d", indicator: "rsi_14", direction: "DOWN", value: 45 },
+    },
+  },
+  {
+    id: "weekly_trend_daily_entry",
+    title: "Weekly Trend, Daily Entry",
+    description:
+      "Only trade with the bigger trend — require RSI above 50 on the weekly (5-day) chart, then enter on a daily bullish-engulfing candle and ride it with a 6% trailing stop.",
+    strategy_name: "weekly_trend_daily_entry",
+    components: {
+      setup: {
+        type: "INDICATOR_THRESHOLD",
+        timeframe: "5d",
+        indicator: "RSI",
+        params: { period: 14 },
+        operator: ">",
+        value: 50,
+      },
+      trigger: { type: "CANDLE_PATTERN", timeframe: "1d", pattern: "BULLISH_ENGULFING" },
+      exit: { type: "TRAILING_STOP_PCT", timeframe: "1d", value: 0.06 },
+    },
+  },
 ];
 
 export function getRecipeById(id: string): BacktestRecipe | undefined {
@@ -146,21 +183,26 @@ export function cloneRecipeComponents(recipeId: string): StrategyComponents | nu
   return r ? componentsFrom(r.components) : null;
 }
 
+/**
+ * Stamp the chosen base timeframe across blocks. The trigger and exit always run
+ * on the base; a setup that is already coarser than the base keeps its own frame
+ * (multi-timeframe alignment only goes coarse→fine).
+ */
 export function applyTimeframeToComponents(parts: StrategyComponents, timeframe: string): StrategyComponents {
-  return {
-    setup: { ...parts.setup, timeframe },
-    trigger: { ...parts.trigger, timeframe },
-    exit: { ...parts.exit, timeframe },
-  };
+  const setupTf = tfRank(parts.setup?.timeframe) > tfRank(timeframe) ? parts.setup.timeframe : timeframe;
+  const out: StrategyComponents = { setup: { ...parts.setup, timeframe: setupTf } };
+  if (parts.trigger) out.trigger = { ...parts.trigger, timeframe };
+  if (parts.exit) out.exit = { ...parts.exit, timeframe };
+  return out;
 }
 
 /** Suggested experiment slug from current blocks (fair A/B tweaks). */
 export function suggestExperimentStrategyName(parts: StrategyComponents): string {
   const setup = parts.setup ?? {};
-  const trigger = parts.trigger ?? {};
+  const trigger = parts.trigger;
   const exitBlock = parts.exit ?? {};
   const setupType = String(setup.type ?? "x").toLowerCase();
-  const trigType = String(trigger.type ?? "x").toLowerCase();
+  const trigType = trigger ? String(trigger.type ?? "x").toLowerCase() : "edge";
   const exitType = String(exitBlock.type ?? "x").toLowerCase();
 
   const seg: string[] = [];
@@ -171,14 +213,10 @@ export function suggestExperimentStrategyName(parts: StrategyComponents): string
     seg.push(ind + val);
   } else seg.push(setupType === "none" ? "noop" : setupType.slice(0, 6));
 
-  if (trigType === "candle_pattern") {
+  if (!trigger) {
+    seg.push("edge");
+  } else if (trigType === "candle_pattern") {
     seg.push(String(trigger.pattern ?? "pattern").toLowerCase().slice(0, 12));
-  } else if (trigType === "indicator_crossover") {
-    seg.push(
-      `${String(trigger.indicator1 ?? "a").slice(0, 4)}_${String(trigger.indicator2 ?? "b").slice(0, 4)}_${
-        String(trigger.crossover_type ?? "gc").toLowerCase() === "golden_cross" ? "gc" : "xc"
-      }`,
-    );
   } else if (trigType === "price_crossover") {
     seg.push(`px${trigger.price_level ?? 0}_${String(trigger.direction ?? "ab").slice(0, 2)}`.toLowerCase());
   } else seg.push(trigType.slice(0, 10));
@@ -201,6 +239,8 @@ export function suggestExperimentStrategyName(parts: StrategyComponents): string
     seg.push(`tp${Math.round(Number(exitBlock.value) * 100)}`);
   } else if (exitType === "trailing_stop_pct") {
     seg.push(`trail${Math.round(Number(exitBlock.value) * 100)}`);
+  } else if (exitType === "indicator_cross") {
+    seg.push(`x${String(exitBlock.indicator ?? "ind")}_${exitBlock.value ?? 0}`.toLowerCase());
   } else if (exitType === "time_based") {
     seg.push(`d${exitBlock.max_holding_days ?? 0}`);
   } else seg.push(exitType.slice(0, 8));
