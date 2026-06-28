@@ -23,9 +23,14 @@ const PreviewBand = () => (
       <div className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Reveal delay={80}>
           <div className="flex h-full flex-col gap-8 rounded-3xl border border-border-subtle bg-card p-8 md:p-10">
-            <div className="flex items-center gap-3">
-              <Target className="h-5 w-5 text-gold-deep" />
-              <h3 className="font-serif text-2xl font-medium text-fg-primary">Goals</h3>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Target className="h-5 w-5 text-gold-deep" />
+                <h3 className="font-serif text-2xl font-medium text-fg-primary">Goals</h3>
+              </div>
+              <span className="rounded-full border border-border-subtle bg-surface-sunken px-2.5 py-1 font-cap text-[10px] uppercase tracking-[0.12em] text-fg-muted">
+                Example
+              </span>
             </div>
             <div className="flex flex-col gap-5">
               {goals.map((g) => (

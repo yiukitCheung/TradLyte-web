@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isAdminEmail } from "@/lib/adminApi";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,21 +12,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const Wordmark = () => (
+const Wordmark = ({ light }: { light?: boolean }) => (
   <Link to="/" className="flex items-center gap-2.5">
-    <span className="h-[22px] w-[22px] rounded-full bg-ink" aria-hidden />
-    <span className="font-serif text-[22px] font-semibold leading-none text-fg-primary">
+    <span
+      className={cn("h-[22px] w-[22px] rounded-full", light ? "bg-gold" : "bg-ink")}
+      aria-hidden
+    />
+    <span
+      className={cn(
+        "font-serif text-[22px] font-semibold leading-none",
+        light ? "text-white" : "text-fg-primary",
+      )}
+    >
       TradLyte
     </span>
   </Link>
 );
 
-const navLinkClass =
-  "text-[15px] font-medium text-fg-secondary transition-colors hover:text-fg-primary";
-
 const Header = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const isHome = location.pathname === "/";
 
   // Logged-out marketing nav vs. logged-in app nav.
   const marketingNav = [
@@ -45,6 +51,38 @@ const Header = () => {
   const navItems = user ? appNav : marketingNav;
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // On the landing route the header floats transparently over the dark hero,
+  // then turns solid once the hero scrolls past the header (64px) — Wealthsimple-style.
+  const [solid, setSolid] = useState(!isHome);
+  useEffect(() => {
+    if (!isHome) {
+      setSolid(true);
+      return;
+    }
+    const onScroll = () => {
+      const hero = document.getElementById("hero-root");
+      setSolid(hero ? hero.getBoundingClientRect().bottom <= 64 : true);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [isHome]);
+
+  const transparent = isHome && !solid && !mobileOpen;
+
+  const navColor = (active: boolean) =>
+    transparent
+      ? active
+        ? "text-white"
+        : "text-white/70 hover:text-white"
+      : active
+        ? "text-fg-primary"
+        : "text-fg-secondary hover:text-fg-primary";
+
   const fullName =
     (user?.user_metadata?.full_name as string | undefined) ||
     user?.email?.split("@")[0] ||
@@ -57,10 +95,17 @@ const Header = () => {
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border-subtle bg-card/90 backdrop-blur-md">
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b transition-colors duration-300",
+        transparent
+          ? "border-transparent bg-transparent"
+          : "border-border-subtle bg-card/90 backdrop-blur-md",
+      )}
+    >
       <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-6 md:px-12">
         <div className="flex flex-1 items-center">
-          <Wordmark />
+          <Wordmark light={transparent} />
         </div>
 
         <nav className="hidden items-center justify-center gap-9 md:flex">
@@ -69,8 +114,8 @@ const Header = () => {
               key={item.label}
               to={item.to}
               className={cn(
-                navLinkClass,
-                location.pathname === item.to && "text-fg-primary",
+                "text-[15px] font-medium transition-colors",
+                navColor(location.pathname === item.to),
               )}
             >
               {item.label}
@@ -84,7 +129,12 @@ const Header = () => {
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((o) => !o)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border-subtle text-fg-primary md:hidden"
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-full border md:hidden",
+              transparent
+                ? "border-white/30 text-white"
+                : "border-border-subtle text-fg-primary",
+            )}
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -117,12 +167,23 @@ const Header = () => {
             </DropdownMenu>
           ) : (
             <>
-              <Link to="/auth" className={cn(navLinkClass, "hidden sm:inline")}>
+              <Link
+                to="/auth"
+                className={cn(
+                  "hidden text-[15px] font-medium transition-colors sm:inline",
+                  navColor(false),
+                )}
+              >
                 Sign in
               </Link>
               <Link
                 to="/auth"
-                className="rounded-full bg-ink px-[22px] py-2.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-90"
+                className={cn(
+                  "whitespace-nowrap rounded-full px-[22px] py-2.5 text-[15px] font-semibold transition-opacity hover:opacity-90",
+                  transparent
+                    ? "bg-gold text-[hsl(222_45%_11%)]"
+                    : "bg-ink text-white",
+                )}
               >
                 Get started
               </Link>
