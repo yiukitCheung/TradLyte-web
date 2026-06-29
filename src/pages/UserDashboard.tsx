@@ -1110,7 +1110,13 @@ const UserDashboard = () => {
                   ))}
                 </div>
               </div>
-              {featuredPick && (
+              <div key={`${pickHorizon}-${pickPage}`} className="animate-fade-in">
+              {picksLoading && (
+                <div className="flex items-center justify-center gap-2 px-6 py-12 font-cap text-sm text-fg-muted" aria-live="polite">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading picks…
+                </div>
+              )}
+              {!picksLoading && featuredPick && (
               <div className="flex flex-col gap-3.5 px-6 py-5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 font-cap text-[11px] font-semibold text-fg-primary"><Star className="h-3 w-3" /> Pick of the day</span>
@@ -1145,7 +1151,7 @@ const UserDashboard = () => {
                     : "No scan ran that far back yet — pick history is still building."}
                 </p>
               )}
-              {listPicks.map((p) => (
+              {!picksLoading && listPicks.map((p) => (
                 <button
                   key={p.symbol}
                   onClick={() => navigate(`/stock/${p.symbol}`)}
@@ -1170,7 +1176,7 @@ const UserDashboard = () => {
                   <ChevronRight className="h-4 w-4 text-fg-muted" />
                 </button>
               ))}
-              {picks.length > 0 && totalPickPages > 1 && (
+              {!picksLoading && picks.length > 0 && totalPickPages > 1 && (
                 <div className="flex items-center justify-between border-t border-border-subtle px-6 py-3.5">
                   <button
                     type="button"
@@ -1193,6 +1199,7 @@ const UserDashboard = () => {
                   </button>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Purpose card */}
