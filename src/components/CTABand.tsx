@@ -5,7 +5,7 @@ import { Reveal } from "@/components/landing/Reveal";
 const CTABand = () => (
   <section className="bg-surface-inverse">
     <div className="mx-auto flex w-full max-w-[900px] flex-col items-center px-6 py-32 text-center md:px-12 md:py-40">
-      <Reveal>
+      <Reveal stagger={90} className="w-full">
         <p className="font-cap text-sm uppercase tracking-[0.18em] text-gold">Ready when you are</p>
         <h2 className="mt-6 font-serif text-[36px] font-medium leading-[1.08] text-white md:text-[48px]">
           Make money a tool, not the goal.

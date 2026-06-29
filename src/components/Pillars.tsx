@@ -34,7 +34,7 @@ const pillars = [
 const Pillars = () => (
   <section className="bg-surface-primary">
     <div className="mx-auto w-full max-w-[1100px] px-6 py-28 md:px-12 md:py-36">
-      <Reveal className="mx-auto max-w-2xl text-center">
+      <Reveal stagger={90} className="mx-auto max-w-2xl text-center">
         <p className="font-cap text-sm uppercase tracking-[0.18em] text-gold-deep">Why TradLyte</p>
         <h2 className="mt-5 font-serif text-[34px] font-medium leading-tight text-fg-primary md:text-[44px]">
           Everything you need. Nothing you don't.

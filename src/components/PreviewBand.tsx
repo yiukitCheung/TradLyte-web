@@ -10,7 +10,7 @@ const goals = [
 const PreviewBand = () => (
   <section className="bg-surface-primary">
     <div className="mx-auto w-full max-w-[1100px] px-6 py-28 md:px-12 md:py-36">
-      <Reveal className="max-w-2xl">
+      <Reveal stagger={90} className="max-w-2xl">
         <p className="font-cap text-sm uppercase tracking-[0.18em] text-gold-deep">After you register</p>
         <h2 className="mt-5 font-serif text-[34px] font-medium leading-tight text-fg-primary md:text-[44px]">
           Tie every decision back to your life.

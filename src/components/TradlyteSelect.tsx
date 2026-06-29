@@ -24,7 +24,7 @@ const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
 const TradlyteSelect = () => (
   <section id="tradlyte-select" className="border-y border-border-subtle bg-surface-sunken/80">
     <div className="mx-auto w-full max-w-[1100px] px-6 py-28 md:px-12 md:py-36">
-      <Reveal className="max-w-2xl">
+      <Reveal stagger={90} className="max-w-2xl">
         <p className="font-cap text-sm uppercase tracking-[0.18em] text-gold-deep">Strategy Lab preview</p>
         <h2 className="mt-5 font-serif text-[34px] font-medium leading-tight text-fg-primary md:text-[44px]">
           Test ideas before you trust them.
