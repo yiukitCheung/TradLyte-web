@@ -1,12 +1,17 @@
-import { useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Pencil, MapPin, Calendar, Check, Wallet, User as UserIcon, FlaskConical } from "lucide-react";
+import { MapPin, Calendar, Check, Wallet, User as UserIcon, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import FinancialHealthTab from "@/components/financial/FinancialHealthTab";
+import LearnFlow from "@/components/education/LearnFlow";
+import EditProfileDialog from "@/components/profile/EditProfileDialog";
+import { fetchProfile, type ProfileRow } from "@/lib/profileUtils";
+
+const DEFAULT_BIO = "Building discipline one entry at a time. Swing trader, slow and steady.";
 
 const stats = [
   { value: "12", label: "Journal streak", color: "text-fg-primary" },
@@ -33,17 +38,33 @@ const activity = [
 const Profile = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
 
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    fetchProfile(user.id).then((row) => {
+      if (active) setProfile(row);
+    });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-surface-primary text-fg-muted">Loading…</div>;
   if (!user) return null;
 
-  const name = (user.user_metadata?.full_name as string | undefined) || user.email?.split("@")[0] || "Trader";
+  const metaName = user.user_metadata?.full_name as string | undefined;
+  const name = profile?.full_name || metaName || user.email?.split("@")[0] || "Trader";
   const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   const handle = `@${(user.email?.split("@")[0] || "trader").toLowerCase()}`;
+  const bio = profile?.bio || DEFAULT_BIO;
+  const location = profile?.location || null;
+  const joinedYear = user.created_at ? new Date(user.created_at).getFullYear() : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-primary">
@@ -57,6 +78,9 @@ const Profile = () => {
             <TabsTrigger value="financial">
               <Wallet className="mr-1.5 h-4 w-4" /> Financial Health
             </TabsTrigger>
+            <TabsTrigger value="learning">
+              <FlaskConical className="mr-1.5 h-4 w-4" /> Learning
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="m-0 flex flex-col gap-6">
@@ -67,25 +91,31 @@ const Profile = () => {
             <div>
               <h1 className="font-serif text-[32px] font-medium text-fg-primary">{name}</h1>
               <p className="text-[15px] text-fg-muted">{handle}</p>
-              <p className="mt-1.5 max-w-[420px] text-[15px] text-fg-secondary">
-                Building discipline one entry at a time. Swing trader, slow and steady.
-              </p>
+              <p className="mt-1.5 max-w-[420px] text-[15px] text-fg-secondary">{bio}</p>
               <div className="mt-2.5 flex items-center gap-4 font-cap text-xs text-fg-muted">
-                <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> San Francisco</span>
-                <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Joined 2024</span>
+                {location && (
+                  <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {location}</span>
+                )}
+                {joinedYear && (
+                  <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Joined {joinedYear}</span>
+                )}
               </div>
             </div>
           </div>
           <div className="flex flex-col items-end gap-3.5">
-            <button className="flex items-center gap-2 rounded-full border border-border-strong bg-card px-4.5 py-2.5 text-sm font-medium text-fg-secondary hover:bg-surface-sunken">
-              <Pencil className="h-3.5 w-3.5" /> Edit profile
-            </button>
-            <Link
-              to="/learn"
-              className="flex items-center gap-2 rounded-full border border-border-strong bg-card px-4.5 py-2.5 text-sm font-medium text-fg-secondary hover:bg-surface-sunken"
-            >
-              <FlaskConical className="h-3.5 w-3.5" /> Indicator Lab
-            </Link>
+            <EditProfileDialog
+              userId={user.id}
+              current={{ fullName: profile?.full_name || metaName || "", bio: profile?.bio || "", location: profile?.location || "" }}
+              onSaved={(next) =>
+                setProfile((prev) => ({
+                  id: user.id,
+                  created_at: prev?.created_at ?? null,
+                  full_name: next.fullName,
+                  bio: next.bio || null,
+                  location: next.location || null,
+                }))
+              }
+            />
             <span className="rounded-full bg-ink px-4 py-2 font-cap text-sm font-medium text-gold">Level 4 · Steady Hand</span>
           </div>
         </div>
@@ -159,6 +189,23 @@ const Profile = () => {
 
           <TabsContent value="financial" className="m-0">
             <FinancialHealthTab />
+          </TabsContent>
+
+          <TabsContent value="learning" className="m-0">
+            <div className="rounded-2xl border border-border-subtle bg-card p-8">
+              <div className="mb-8 max-w-[520px]">
+                <p className="font-cap text-[13px] font-semibold uppercase tracking-[0.18em] text-gold-deep">
+                  Indicator Lab
+                </p>
+                <h2 className="mt-2 font-serif text-[26px] font-medium leading-tight text-fg-primary">
+                  Learn by doing
+                </h2>
+                <p className="mt-2 text-[15px] leading-relaxed text-fg-secondary">
+                  Five interactive lessons — drag the controls and watch the math react live. No formulas, no lectures.
+                </p>
+              </div>
+              <LearnFlow />
+            </div>
           </TabsContent>
         </Tabs>
       </main>
