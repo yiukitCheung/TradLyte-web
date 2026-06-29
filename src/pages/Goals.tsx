@@ -203,7 +203,7 @@ const Goals = () => {
     fetchGoals();
   };
 
-  const { status: vaultStatus, summary: vaultSummary, state: vaultState } = useFinancialVault();
+  const { status: vaultStatus, summary: vaultSummary, state: vaultState, reload: reloadVault } = useFinancialVault();
 
   const totalCommitted = goals.reduce((s, g) => s + (g.target_amount || 0), 0);
   const totalSaved = goals.reduce((s, g) => s + (g.current_amount || 0), 0);
@@ -283,6 +283,17 @@ const Goals = () => {
           </div>
         </section>
 
+        {/* While the encrypted vault resolves (network + PBKDF2 unlock), hold the
+            slot so the funding projection doesn't look frozen/blank. */}
+        {vaultStatus === "loading" && goals.length > 0 && (
+          <section className="px-6 md:px-12">
+            <div className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-card p-5" aria-busy="true" aria-live="polite">
+              <Skeleton className="h-3.5 w-48" />
+              <Skeleton className="h-40 w-full rounded-xl" />
+            </div>
+          </section>
+        )}
+
         {/* Surplus-growth projection chart (from the private Financial Health vault) */}
         {vaultStatus === "unlocked" && (vaultSummary?.surplus ?? 0) > 0 && (
           <section className="px-6 md:px-12">
@@ -304,6 +315,19 @@ const Goals = () => {
               <Lock className="h-4 w-4 text-gold-deep" />
               Unlock your Financial Health to project when your cash flow funds these goals.
             </button>
+          </section>
+        )}
+        {vaultStatus === "error" && goals.length > 0 && (
+          <section className="px-6 md:px-12">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-card px-5 py-3.5 text-sm text-fg-secondary">
+              <span>Couldn't load your funding projection.</span>
+              <button
+                onClick={() => void reloadVault()}
+                className="rounded-full border border-border-strong px-4 py-1.5 font-cap text-[13px] font-medium text-fg-primary hover:bg-surface-sunken"
+              >
+                Retry
+              </button>
+            </div>
           </section>
         )}
 
