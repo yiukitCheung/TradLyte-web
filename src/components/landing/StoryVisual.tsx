@@ -1,13 +1,15 @@
-import { Target, FlaskConical, LineChart, Check } from "lucide-react";
+import { Target, FlaskConical, LineChart, Check, Zap, BellRing } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LANDING_BACKTEST } from "@/lib/landingSnapshot";
 import { useTopPickReturn } from "@/hooks/useTopPickReturn";
 
 /**
- * The three morphing frames for the pinned "How it works" narrative.
- *   0 — Know your why  (purpose / goals — illustrative example, labelled)
- *   1 — Test your idea (a REAL snapshotted Strategy Lab backtest)
- *   2 — Track with calm (a REAL live public top pick + 21d trailing return)
+ * The four morphing frames for the pinned "How it works" narrative.
+ *   0 — Know your why    (purpose / goals — illustrative example, labelled)
+ *   1 — Test your idea    (a REAL snapshotted Strategy Lab backtest, no code)
+ *   2 — Run it automatically (the plan runs on its own — TradLyte WATCHES + ALERTS;
+ *                            it never trades for you, so the card says so explicitly)
+ *   3 — Track with calm   (a REAL live public top pick + 21d trailing return)
  */
 
 const cardBase =
@@ -167,8 +169,47 @@ const TrackCard = () => {
   );
 };
 
+const ExecuteCard = () => (
+  <div className={cardBase}>
+    <div className="flex items-center gap-3">
+      <Zap className="h-5 w-5 text-gold-deep" />
+      <h3 className="font-serif text-2xl font-medium text-fg-primary">Run it automatically</h3>
+    </div>
+    <p className="mt-3 text-sm text-fg-secondary">
+      Set your plan once — TradLyte watches the market and pings you the moment it triggers.
+    </p>
+
+    <div className="mt-8 flex flex-col gap-3">
+      {/* the rule, running on its own */}
+      <div className="flex items-center justify-between rounded-2xl border border-border-subtle bg-surface-sunken/60 px-4 py-3">
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-fg-primary">Fast EMA Cross</span>
+          <span className="font-cap text-[11px] uppercase tracking-[0.12em] text-fg-muted">
+            watching · GOOG
+          </span>
+        </div>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium text-positive">
+          <span className="h-1.5 w-1.5 rounded-full bg-positive" />
+          live
+        </span>
+      </div>
+      {/* the alert it fires — a signal, not a trade */}
+      <div className="flex items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3">
+        <BellRing className="h-4 w-4 text-gold-deep" />
+        <span className="text-sm text-fg-secondary">Signal sent — your conditions just hit.</span>
+      </div>
+    </div>
+
+    {/* the honest boundary: TradLyte is a companion, not a brokerage */}
+    <p className="mt-auto pt-5 font-cap text-[11px] uppercase tracking-[0.12em] text-fg-muted">
+      We alert — you decide. TradLyte never trades for you.
+    </p>
+  </div>
+);
+
 export function StoryFrame({ index }: { index: number }) {
   if (index === 0) return <PurposeCard />;
   if (index === 1) return <BacktestCard />;
+  if (index === 2) return <ExecuteCard />;
   return <TrackCard />;
 }

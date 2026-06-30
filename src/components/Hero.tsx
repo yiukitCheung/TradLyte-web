@@ -3,7 +3,13 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import HeroAnimation from "@/components/landing/HeroAnimation";
 
-const trust = ["Free to start", "No credit card", "Purpose-first"];
+// Why we're different from other financial-analytics platforms — purpose, not
+// dopamine; signal, not a ticker firehose; a companion that guides but never trades.
+const differentiators = [
+  "Purpose over profit — every move tied to your goals",
+  "Signal over noise — not another thousand-ticker firehose",
+  "We guide, never trade — analyze & backtest, not a brokerage",
+];
 
 const Hero = () => {
   const { user } = useAuth();
@@ -12,39 +18,55 @@ const Hero = () => {
   return (
     <section
       id="hero-root"
-      className="hero-dark relative -mt-16 overflow-hidden bg-[hsl(var(--hero-bg))] text-[hsl(var(--hero-text))]"
+      className="hero-dark relative -mt-16 flex min-h-screen items-center overflow-hidden bg-[hsl(var(--hero-bg))] text-[hsl(var(--hero-text))]"
     >
-      {/* Soft depth glow behind the animation, weighted to the upper-right. */}
+      {/* Full-bleed hero animation — the bold living background. */}
+      <div className="absolute inset-0" aria-hidden>
+        <HeroAnimation />
+      </div>
+
+      {/* Legibility scrims over the animation so the copy stays readable.
+          Horizontal: darkens the left where the copy lives (desktop).
+          Vertical (mobile only): darkens the top where the copy stacks. */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(120% 90% at 82% 8%, hsl(var(--hero-bg-2)), transparent 58%)",
+            "linear-gradient(90deg, hsl(var(--hero-bg)) 0%, hsl(var(--hero-bg) / 0.92) 30%, hsl(var(--hero-bg) / 0.5) 52%, transparent 78%)",
+        }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 lg:hidden"
+        style={{
+          background:
+            "linear-gradient(180deg, hsl(var(--hero-bg) / 0.93) 0%, hsl(var(--hero-bg) / 0.66) 45%, hsl(var(--hero-bg) / 0.55) 100%)",
         }}
         aria-hidden
       />
 
-      <div className="relative mx-auto grid w-full max-w-[1200px] items-center gap-12 px-6 pb-20 pt-16 md:px-12 md:pb-28 md:pt-24 lg:grid-cols-[minmax(0,44%)_minmax(0,56%)] lg:gap-14">
-        {/* Copy — the legible safe zone */}
-        <div className="lg:max-w-[520px]">
+      {/* Content — overlaid, left-weighted safe zone. */}
+      <div className="relative z-10 mx-auto w-full max-w-[1200px] px-6 py-24 md:px-12 md:py-28">
+        <div className="max-w-[560px]">
           <p className="landing-fade-up font-cap text-sm uppercase tracking-[0.18em] text-[hsl(var(--hero-gold))]">
-            AI-driven clarity
+            Your purpose-driven investing companion
           </p>
           <h1
-            className="landing-fade-up mt-6 font-serif text-[40px] font-medium leading-[1.05] md:text-[54px]"
+            className="landing-fade-up mt-6 font-serif text-[40px] font-medium leading-[1.05] md:text-[58px]"
             style={{ animationDelay: "80ms" }}
           >
-            Step off the rollercoaster.
+            Markets are loud.
             <span className="mt-2 block italic text-[hsl(var(--hero-gold))]">
-              Into the plan.
+              Your plan stays clear.
             </span>
           </h1>
           <p
             className="landing-fade-up mt-7 max-w-[460px] text-[17px] leading-relaxed text-[hsl(var(--hero-muted))]"
             style={{ animationDelay: "160ms" }}
           >
-            One glance instead of a thousand tickers. TradLyte filters the noise,
-            automates your risk, and gives you the clarity to invest with purpose.
+            TradLyte turns market noise into a simple, purpose-tied plan — discover
+            and backtest ideas without code, then track every step from your own
+            entry price. We help you decide, not trade for you.
           </p>
 
           <div
@@ -60,33 +82,25 @@ const Hero = () => {
             </Link>
             <a
               href="#how-it-works"
-              className="inline-flex items-center rounded-full border border-white/20 px-7 py-4 text-base font-semibold text-[hsl(var(--hero-text))] transition-colors hover:bg-white/5"
+              className="inline-flex items-center rounded-full border border-white/20 px-7 py-4 text-base font-semibold text-[hsl(var(--hero-text))] backdrop-blur-sm transition-colors hover:bg-white/5"
             >
               See how it works
             </a>
           </div>
 
           <div
-            className="landing-fade-up mt-10 flex flex-wrap gap-x-8 gap-y-3"
+            className="landing-fade-up mt-10 flex flex-col gap-y-3"
             style={{ animationDelay: "320ms" }}
           >
-            {trust.map((t) => (
-              <div key={t} className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-[hsl(var(--hero-gold))]" />
+            {differentiators.map((t) => (
+              <div key={t} className="flex items-center gap-2.5">
+                <Check className="h-4 w-4 flex-none text-[hsl(var(--hero-gold))]" />
                 <span className="text-sm font-medium text-[hsl(var(--hero-muted))]">
                   {t}
                 </span>
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Animation — weighted right, never under the text on desktop */}
-        <div
-          className="landing-fade-up relative h-[260px] w-full sm:h-[320px] lg:h-[440px]"
-          style={{ animationDelay: "200ms" }}
-        >
-          <HeroAnimation />
         </div>
       </div>
     </section>

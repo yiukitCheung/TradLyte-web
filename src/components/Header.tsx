@@ -14,9 +14,14 @@ import {
 
 const Wordmark = ({ light }: { light?: boolean }) => (
   <Link to="/" className="flex items-center gap-2.5">
-    <span
-      className={cn("h-[22px] w-[22px] rounded-full", light ? "bg-gold" : "bg-ink")}
+    <img
+      src="/favicon.svg?v=2"
+      alt=""
       aria-hidden
+      className={cn(
+        "h-[26px] w-[26px] rounded-[7px]",
+        light ? "ring-1 ring-white/20" : "ring-1 ring-border-subtle",
+      )}
     />
     <span
       className={cn(

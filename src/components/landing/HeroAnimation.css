@@ -1,0 +1,921 @@
+/* =============================================================================
+   Hero Variant E — "Warm Bloom — a candle lit in a dark room."
+   One ~18s master loop, four acts. CSS keyframes only. Centered + radial.
+
+   Act timeline (as a fraction of the 18s loop):
+     Act 1 COLD CONFUSION   0.00–0.33   (0.0–6.0s)   questions accumulate 1-by-1
+     Act 2 TWILIGHT BLOOM   0.33–0.56   (6.0–10.0s)  twilight "T" ignites + reaches
+     Act 3 DECISION (line)  0.56–0.82   (10.0–14.8s) deliberate draw + life-goal hits
+     Act 4 REFLECTION       0.82–1.00   (14.8–18.0s) over a persistent warm wash
+
+   Every class is prefixed `heroE-`. Semantic colors come from the .hero-dark
+   custom properties only. The decorative twilight stops are scoped new custom
+   properties on the root element. No global selectors.
+   ========================================================================== */
+
+/* ---- stage --------------------------------------------------------------- */
+.heroE-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  font-family: "Inter", system-ui, sans-serif;
+
+  /* loop length */
+  --heroE-loop: 18s;
+
+  /* scoped, decorative twilight stops (dusk-violet → amber → rose-gold).
+     These are NOT --hero-* tokens; the decision line stays --hero-gold.
+     Retuned warmer + more luminous so the bloom reads as candlelight: a richer
+     dusk violet to seed from, a brighter amber core, a softer rose midtone. */
+  --twi-violet: 264 54% 46%;
+  --twi-amber: 36 86% 64%;
+  --twi-rose: 14 66% 64%;
+}
+
+/* Cold dark ground — deep cold navy confusion field. Also the RM floor.
+   Deepens through Act 1 so the warm bloom has real darkness to push back
+   against, holds cold through ~33%, then the warmth pushes it back. The base
+   is a touch cooler/darker than before (a cold cast over the whole field). */
+.heroE-cold {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      120% 120% at 50% 50%,
+      hsl(var(--hero-bg-2) / 0.5),
+      hsl(var(--hero-bg)) 68%
+    );
+  animation: heroE-coldDeepen var(--heroE-loop) ease-in-out infinite;
+}
+@keyframes heroE-coldDeepen {
+  0%      { opacity: 1; }
+  33%     { opacity: 1; }      /* held fully dark through the whole confusion */
+  56%     { opacity: 0.6; }    /* the candle decisively pushes the dark floor back */
+  64%     { opacity: 0.6; }    /* and holds it back through the decision */
+  82%     { opacity: 0.66; }
+  100%    { opacity: 1; }
+}
+
+/* Restrained COLD vignette — a cool blue cast that pools at the edges and
+   deepens through Act 1, making the unlit field feel anxious. It recedes as the
+   twilight blooms (the warmth burns it off from the center outward). Kept very
+   low-contrast and editorial — a chill, not a black frame. */
+.heroE-coldVignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      130% 120% at 50% 50%,
+      transparent 34%,
+      hsl(214 46% 12% / 0.55) 82%,
+      hsl(218 52% 8% / 0.8) 100%
+    );
+  mix-blend-mode: multiply;
+  opacity: 0;
+  animation: heroE-coldVignette var(--heroE-loop) ease-in-out infinite;
+}
+@keyframes heroE-coldVignette {
+  0%      { opacity: 0.55; }
+  16%     { opacity: 1; }      /* the cold closes in hard at peak confusion */
+  33%     { opacity: 0.98; }   /* held genuinely dark through Act 1 */
+  52%     { opacity: 0.12; }   /* warmth burns the chill nearly off */
+  82%     { opacity: 0.08; }
+  100%    { opacity: 0.55; }
+}
+
+/* Warm AMBIENT wash — a soft, field-wide twilight tint that fades in as the
+   bloom settles and STAYS through Acts 3–4 so the room remains warmed under the
+   decision line and reflection. This is the whole cold→warm payload made
+   persistent; it never strobes, just a gentle held glow. */
+.heroE-warmWash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      120% 120% at 50% 46%,
+      hsl(var(--twi-amber) / 0.22) 0%,
+      hsl(var(--twi-rose) / 0.15) 40%,
+      hsl(var(--twi-violet) / 0.11) 72%,
+      transparent 100%
+    );
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: heroE-warmWash var(--heroE-loop) ease-in-out infinite;
+}
+@keyframes heroE-warmWash {
+  0%, 33% { opacity: 0; }       /* cold open — no warmth yet */
+  52%     { opacity: 0.78; }    /* warmth has reached across the field */
+  60%     { opacity: 1; }       /* fully warmed as the decision begins — earlier */
+  92%     { opacity: 1; }       /* the room stays unmistakably in candlelight */
+  100%    { opacity: 0; }       /* eases back to cold for the loop */
+}
+
+/* =========================================================================
+   ACT 1 — DARK CONFUSION (chaotic field + human questions)
+   The whole group is present from the start, then each glyph is individually
+   dissolved by the radial warmth (staggered via --heroE-bd per glyph).
+   ========================================================================= */
+.heroE-chaos {
+  position: absolute;
+  inset: 0;
+}
+
+/* shared positioning anchor for every glyph; the bloom-fade lives here so it
+   can be offset per-glyph by radial distance (--heroE-bd). */
+.heroE-glyph,
+.heroE-candle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  /* warmth reaches this glyph and settles it; delay scales with distance */
+  animation: heroE-bloomFade var(--heroE-loop) ease-in-out infinite;
+  animation-delay: var(--heroE-bd, 0s);
+}
+
+/* inner element carries the Act-1 micro-life (flicker / drift / pulse) so it
+   stacks with the outer bloom-fade without fighting transforms. */
+.heroE-glyphInner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+/* --- news headline chips --- */
+.heroE-glyph--news .heroE-glyphInner {
+  font-family: "Funnel Sans", "Inter", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--hero-text));
+  background: hsl(var(--hero-bg-2) / 0.85);
+  border: 1px solid hsl(var(--hero-muted) / 0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+  animation-name: heroE-drift;
+  animation-duration: 4s;
+}
+
+/* --- FOMO pulse tags --- */
+.heroE-glyph--fomo .heroE-glyphInner {
+  font-family: "Inter", sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  color: hsl(var(--hero-green));
+  background: hsl(var(--hero-green) / 0.12);
+  border: 1px solid hsl(var(--hero-green) / 0.4);
+  border-radius: 6px;
+  padding: 2px 7px;
+  animation-name: heroE-fomoPulse;
+}
+
+/* --- fin-fluencer quote bubbles --- */
+.heroE-glyph--fluencer .heroE-glyphInner {
+  font-family: "Newsreader", Georgia, serif;
+  font-style: italic;
+  font-size: 10px;
+  color: hsl(var(--hero-text));
+  background: hsl(var(--hero-bg-2) / 0.9);
+  border: 1px solid hsl(var(--hero-muted) / 0.3);
+  border-radius: 10px 10px 10px 2px;
+  padding: 3px 8px;
+  animation-name: heroE-bob;
+}
+.heroE-avatar {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--hero-red) / 0.85),
+    hsl(var(--hero-gold) / 0.85)
+  );
+}
+
+/* --- human questions (serif, the emotional voice of the confusion) ---
+   These are the emotional core, so they sit brighter, larger, and on a soft
+   dark scrim so they stay readable over candles and chips.
+
+   Questions accumulate ONE BY ONE: the OUTER element runs a dedicated
+   appear-hold-dissolve keyframe (heroE-questionLife) whose start is offset by
+   --heroE-qa (the index-derived appearance delay) — so a positive delay simply
+   keeps a later question in its hidden pre-roll until its turn comes. The inner
+   element keeps the gentle serif drift. */
+.heroE-glyph--question {
+  z-index: 3; /* above the noise field */
+  /* override the generic bloomFade: questions appear staggered, then dissolve */
+  animation-name: heroE-questionLife;
+  animation-delay: var(--heroE-qa, 0s);
+  animation-fill-mode: both; /* hold the hidden pre-roll state during the delay */
+}
+.heroE-glyph--question .heroE-glyphInner {
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 16px;
+  font-style: italic;
+  color: hsl(var(--hero-text) / 0.94);
+  background: hsl(var(--hero-bg) / 0.55);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  border-radius: 8px;
+  padding: 2px 9px;
+  text-shadow: 0 1px 8px hsl(var(--hero-bg));
+  animation-name: heroE-questionDrift;
+  animation-duration: 5s;
+}
+/* The most existential question lingers LONGEST — it dissolves later (right as
+   the "T" ignites), a poetic hand-off from question to answer. */
+.heroE-glyph--existential {
+  z-index: 4; /* sits above the other questions while it lingers */
+  animation-name: heroE-questionLifeExistential;
+}
+
+/* --- price-noise candlesticks --- */
+.heroE-candle {
+  width: 7px;
+  height: 46px;
+}
+.heroE-candleFlick {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%; /* grow/shrink from the base, like a real candle */
+  animation-name: heroE-candleFlick;
+  animation-iteration-count: infinite;
+  animation-timing-function: steps(3, jump-none);
+}
+.heroE-wick {
+  position: absolute;
+  left: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  opacity: 0.85;
+}
+.heroE-body {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border-radius: 1.5px;
+}
+
+/* --- Act-1 micro-life keyframes --- */
+@keyframes heroE-drift {
+  0%, 100% { opacity: 0.6; transform: translateX(5px); }
+  50%      { opacity: 1; transform: translateX(-5px); }
+}
+@keyframes heroE-questionDrift {
+  0%, 100% { opacity: 0.8; transform: translateY(3px); }
+  50%      { opacity: 1; transform: translateY(-3px); }
+}
+@keyframes heroE-fomoPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 hsl(var(--hero-green) / 0); }
+  50%      { transform: scale(1.08); box-shadow: 0 0 10px hsl(var(--hero-green) / 0.45); }
+}
+@keyframes heroE-bob {
+  0%, 100% { transform: translateY(0); opacity: 0.8; }
+  50%      { transform: translateY(-3px); opacity: 1; }
+}
+/* punchier price-noise pop: a bigger up/down swing + scale flutter, jumped via
+   steps() so it reads as a frantic, churning candle rather than a gentle pulse. */
+@keyframes heroE-candleFlick {
+  0%   { opacity: 0.95; transform: translateY(3px) scaleY(0.9); }
+  50%  { opacity: 0.4;  transform: translateY(-5px) scaleY(1.12); }
+  100% { opacity: 0.95; transform: translateY(3px) scaleY(0.9); }
+}
+
+/* The bloom-fade: a glyph lives through Act 1, is reached by the warmth in
+   Act 2 (softens, lifts, dissolves), and stays gone until the loop restarts.
+   --heroE-bd (0–2.4s) staggers each glyph by radial distance from center so the
+   dissolve visibly tracks the warmth radius growing outward through Act 2. The
+   dissolve now sits at ~36–46% (Act 2, 6–8.3s), a touch later + more gradual so
+   it reads as the warm front physically reaching each glyph. */
+@keyframes heroE-bloomFade {
+  /* the chaos field is already PRESENT at loop start (opacity 1) — only the
+     dissolve is staggered per-glyph by --heroE-bd, never the appearance. */
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  33%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  /* warmth front passes — soften, lift, dissolve */
+  44%  { opacity: 0; transform: translate(-50%, -60%) scale(0.82); filter: blur(2px); }
+  92%  { opacity: 0; transform: translate(-50%, -60%) scale(0.82); }
+  /* re-settle into place just before the loop restarts so 0% is already lit */
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Question life: a question is HIDDEN at loop start (opacity 0), fades in on its
+   turn (the --heroE-qa delay holds it hidden until then), holds legibly through
+   Act 1, then dissolves AS THE WARMTH ARRIVES — not before. The hold→dissolve is
+   pushed to ~38%→48% (was 30%→40%) so even the first-asked question (qa≈0) clears
+   AFTER the bloom has kindled (heroE-bloomGrow is scale 0.24 at 38% → 0.6 at 46%
+   and the warm wash crosses 0.7 by 52%): each question is now cleared BY the warm
+   front reaching it rather than timing out into the still-cold dark. Because the
+   whole animation is offset by --heroE-qa, later-indexed questions both appear AND
+   dissolve a little later — a tide that clears from first-asked to last-asked. */
+@keyframes heroE-questionLife {
+  0%   { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  6%   { opacity: 0.94; transform: translate(-50%, -50%) scale(1); }   /* fades in on its turn */
+  38%  { opacity: 0.94; transform: translate(-50%, -50%) scale(1); }   /* holds, legible, into the kindling */
+  48%  { opacity: 0; transform: translate(-50%, -60%) scale(0.82); filter: blur(2px); } /* the warm front reaches + dissolves it */
+  92%  { opacity: 0; transform: translate(-50%, -60%) scale(0.82); }
+  100% { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+}
+
+/* The existential question is the CREST of the rising tide: it arrives LAST and
+   leaves LAST. Its hidden pre-roll is held all the way to ~22% — AFTER the four
+   chaos questions have appeared and are holding (qi3 lands ~13.5%) — so it fades
+   in alone at ~22–26%, the final, hardest question landing by itself. It then
+   lingers through the ignition and dissolves at ~50%, right as the "T" finishes
+   igniting: the climactic hand-off from question to answer. (qa stays 0s so this
+   late appearance is baked into the keyframe, keeping the late dissolve pinned to
+   a fixed loop %, independent of any appearance delay.) */
+@keyframes heroE-questionLifeExistential {
+  0%   { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  22%  { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }   /* held hidden until the chaos questions are all up */
+  27%  { opacity: 0.96; transform: translate(-50%, -50%) scale(1); }   /* crests alone — the last, hardest question lands */
+  44%  { opacity: 0.96; transform: translate(-50%, -50%) scale(1); }   /* lingers through the ignition */
+  50%  { opacity: 0; transform: translate(-50%, -62%) scale(0.8); filter: blur(2.5px); } /* gives way to the light */
+  92%  { opacity: 0; transform: translate(-50%, -62%) scale(0.8); }
+  100% { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+}
+
+/* =========================================================================
+   ACT 2 — TWILIGHT BLOOM (radial warmth from center)
+   A soft warm disc + two concentric rings expand outward, warming the field.
+   ========================================================================= */
+
+/* the warm twilight glow that fills the field once the T ignites */
+.heroE-bloom {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%) scale(0.1);
+  border-radius: 50%;
+  /* dusk-violet → amber → rose-gold, fading to transparent at the edge */
+  background: radial-gradient(
+    circle at center,
+    hsl(var(--twi-amber) / 0.6) 0%,
+    hsl(var(--twi-rose) / 0.5) 34%,
+    hsl(var(--twi-violet) / 0.62) 62%,
+    transparent 80%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+  filter: blur(8px);
+  animation: heroE-bloomGrow var(--heroE-loop) ease-in-out infinite;
+}
+/* SLOW, deliberate ignition + gradual expansion (no flash): the disc kindles
+   small and dim at ~33%, then grows luminous and reaches full size over Act 2,
+   visibly warming outward to meet the glyph dissolves (--heroE-bd stagger). It
+   then holds a soft warmth (handed off to the persistent warm wash) rather than
+   snapping out. */
+@keyframes heroE-bloomGrow {
+  0%, 33%  { opacity: 0; transform: translate(-50%, -50%) scale(0.06); }
+  38%      { opacity: 0.3; transform: translate(-50%, -50%) scale(0.24); }  /* a small, low kindling */
+  46%      { opacity: 0.7; transform: translate(-50%, -50%) scale(0.6); }   /* swelling, reaching out */
+  56%      { opacity: 0.96; transform: translate(-50%, -50%) scale(1); }    /* fully bloomed across the field */
+  72%      { opacity: 0.78; transform: translate(-50%, -50%) scale(1.04); } /* settles, warmth held */
+  88%      { opacity: 0.5; transform: translate(-50%, -50%) scale(1.05); }
+  96%      { opacity: 0.24; }
+  100%     { opacity: 0; transform: translate(-50%, -50%) scale(0.06); }
+}
+
+/* a single very-soft, heavily-blurred warm halo that breathes in place — NOT a
+   crisp ring racing outward (no radar/scan-line edge). It swells gently around
+   the candle as the warmth settles, then fades where it stands. */
+.heroE-bloomRing {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%) scale(0.7);
+  border-radius: 50%;
+  /* soft annulus made of a feathered radial gradient (no hard border edge) */
+  background: radial-gradient(
+    circle at center,
+    transparent 38%,
+    hsl(var(--twi-amber) / 0.16) 56%,
+    hsl(var(--twi-rose) / 0.12) 70%,
+    transparent 84%
+  );
+  mix-blend-mode: screen;
+  filter: blur(26px);
+  opacity: 0;
+  animation: heroE-ring var(--heroE-loop) ease-in-out infinite;
+}
+.heroE-bloomRing--1 { animation-delay: 0s; }
+.heroE-bloomRing--2 {
+  width: 92%;
+  animation-delay: calc(var(--heroE-loop) * 0.05);
+  background: radial-gradient(
+    circle at center,
+    transparent 44%,
+    hsl(var(--twi-rose) / 0.12) 62%,
+    hsl(var(--twi-violet) / 0.14) 76%,
+    transparent 88%
+  );
+  filter: blur(34px);
+}
+@keyframes heroE-ring {
+  0%, 34%  { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  46%      { opacity: 0.85; transform: translate(-50%, -50%) scale(0.92); } /* swells gently with the bloom */
+  60%      { opacity: 0.66; transform: translate(-50%, -50%) scale(1.04); }
+  80%      { opacity: 0.3; transform: translate(-50%, -50%) scale(1.08); }  /* fades in place, warmth held by the wash */
+  100%     { opacity: 0; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+/* The serif "T" mark — the light source that ignites at center and IS the
+   twilight itself: a glyph FILLED with the dusk-violet → amber → rose-gold
+   gradient, wrapped in a soft, layered twilight bloom. Dusk light condensing
+   into a single warm letter, then handing its light to the chart. */
+.heroE-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+}
+
+/* OUTER layered bloom — a large, very-soft twilight halo behind the glyph.
+   Wider + softer than the inner glow so the light feels like it has depth. */
+.heroE-markBloom {
+  position: absolute;
+  /* scales with the viewport so the twilight halo stays commanding on the
+     full-bleed hero (was a fixed 168px sized for the old small box). */
+  width: clamp(260px, 34vw, 560px);
+  height: clamp(260px, 34vw, 560px);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    hsl(var(--twi-amber) / 0.5) 0%,
+    hsl(var(--twi-rose) / 0.4) 32%,
+    hsl(var(--twi-violet) / 0.32) 58%,
+    transparent 76%
+  );
+  filter: blur(20px);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: heroE-markBloom var(--heroE-loop) ease-in-out infinite;
+}
+/* INNER glow — a tighter, brighter candle-core right around the glyph. */
+.heroE-markGlow {
+  position: absolute;
+  width: clamp(150px, 19vw, 320px);
+  height: clamp(150px, 19vw, 320px);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    hsl(var(--twi-amber) / 0.9),
+    hsl(var(--twi-rose) / 0.42) 46%,
+    transparent 72%
+  );
+  filter: blur(7px);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: heroE-markGlow var(--heroE-loop) ease-in-out infinite;
+}
+/* The glyph itself: Newsreader serif, weight 500, filled with the twilight
+   gradient via background-clip:text. An oversized 200% gradient + a slow
+   background-position shimmer makes the dusk light breathe gently inside the
+   letter (poetic, not strobing). A soft drop-shadow halo grounds it in warmth. */
+.heroE-markT {
+  position: relative;
+  font-family: "Newsreader", Georgia, serif;
+  font-weight: 500;
+  /* the poetic centerpiece — scales with the viewport so it commands the
+     full-bleed hero (was a fixed 60px sized for the old small box). */
+  font-size: clamp(72px, 8.6vw, 132px);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  /* warm-dominant twilight: the LETTER carries the glowing amber/rose core of
+     dusk (lit from within) while the surrounding bloom/halo carries the violet.
+     Pure-violet endpoints read muddy on a glyph, so they're dropped here. */
+  background: linear-gradient(
+    160deg,
+    hsl(var(--twi-rose)) 0%,
+    hsl(var(--twi-amber)) 34%,
+    hsl(38 94% 78%) 52%,
+    hsl(var(--twi-amber)) 70%,
+    hsl(var(--twi-rose)) 100%
+  );
+  /* a modest oversize so the full warm range falls across the glyph while a slow
+     position drift still reads as a gentle shimmer (not a single flat tone). */
+  background-size: 130% 145%;
+  background-position: 50% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* layered twilight halo cast by the glyph itself */
+  filter:
+    drop-shadow(0 0 14px hsl(var(--twi-amber) / 0.75))
+    drop-shadow(0 0 30px hsl(var(--twi-rose) / 0.45));
+  opacity: 0;
+  /* two stacked animations: the ignite/dim envelope + a slow position shimmer.
+     The shimmer duration is a CLEAN DIVISOR of the 18s master loop (18 / 6 = 3),
+     so its background-position phase re-aligns at every loop boundary — the
+     "breathing dusk light" is now deterministic per loop, matching the rest of
+     the keyframe-pinned composition (was 7s, which drifted since 18 % 7 ≠ 0). */
+  animation:
+    heroE-markT var(--heroE-loop) ease-in-out infinite,
+    heroE-markShimmer 6s ease-in-out infinite;
+}
+/* The bloom kindles SLOWLY (no flare): a low ember at ~36% that swells into a
+   steady twilight halo by ~50%, peaking as the existential question hands off,
+   then easing as the decision line takes over. */
+@keyframes heroE-markBloom {
+  0%, 34% { opacity: 0; transform: scale(0.5); }
+  40%     { opacity: 0.3; transform: scale(0.82); }   /* ember catches */
+  50%     { opacity: 0.9; transform: scale(1.1); }    /* steady twilight halo */
+  60%     { opacity: 0.7; transform: scale(1.02); }
+  72%     { opacity: 0.34; transform: scale(0.94); }
+  80%     { opacity: 0; }                              /* hands off to the line */
+  100%    { opacity: 0; }
+}
+@keyframes heroE-markGlow {
+  0%, 34% { opacity: 0; transform: scale(0.55); }
+  40%     { opacity: 0.35; transform: scale(0.8); }   /* ember catches */
+  50%     { opacity: 1; transform: scale(1.08); }     /* steady candle-core */
+  60%     { opacity: 0.8; transform: scale(1); }
+  72%     { opacity: 0.4; transform: scale(0.92); }
+  80%     { opacity: 0; }                              /* hands off to the line */
+  100%    { opacity: 0; }
+}
+@keyframes heroE-markT {
+  0%, 34% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); }
+  42%     { opacity: 0.5; transform: translate(-50%, -50%) scale(0.9); }  /* kindling */
+  50%     { opacity: 1; transform: translate(-50%, -50%) scale(1); }      /* fully lit as the last question gives way */
+  62%     { opacity: 1; }
+  72%     { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }   /* dims as the line draws */
+  100%    { opacity: 0; transform: translate(-50%, -50%) scale(0.72); }
+}
+/* gentle, slow shimmer — the twilight light drifting inside the glyph. Runs on
+   a 6s clock that divides the 18s master loop evenly (×3), so its phase re-pins
+   at every loop boundary; only visible while the T is lit, so it reads as the
+   letter quietly breathing dusk light — the same dusk-breath on every loop. */
+@keyframes heroE-markShimmer {
+  0%, 100% { background-position: 50% 8%; }
+  50%      { background-position: 50% 70%; }
+}
+
+/* =========================================================================
+   ACT 3 — STRUCTURED DECISION (proportional, high-res gold equity chart)
+   The plan is an aspect-locked panel (matching the 480×210 viewBox) weighted
+   CENTER / CENTER-RIGHT of the stage so it clears the left marketing copy and
+   is never stretched. Large + bold but proportionate.
+   ========================================================================= */
+.heroE-plan {
+  position: absolute;
+  /* center-right placement: the panel's own midpoint sits ~58% across so it
+     reads as center-weighted but stays clear of the left ~50% scrim/copy. */
+  left: 58%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* a wide panel sized off the stage; aspect-locked so meet never stretches it.
+     min/max keep it bold on huge viewports yet contained on small ones. */
+  width: clamp(360px, 56%, 760px);
+  /* ⚠️ LOCKSTEP INVARIANT — this MUST equal the SVG viewBox (VB_W / VB_H = 480 / 210
+     in HeroAnimation.tsx). Milestone chips are overlaid by viewBox fraction and only
+     land on their dots because this box aspect matches the viewBox exactly, so
+     preserveAspectRatio="xMidYMid meet" yields ZERO letterbox (equal x/y scale). If
+     you change VB_W/VB_H in the TSX, change this number in the SAME edit. A dev-only
+     console.warn (ASPECT_GUARD in the TSX) trips if these ever diverge. */
+  aspect-ratio: 480 / 210;
+  opacity: 0;
+  animation: heroE-planLife var(--heroE-loop) ease-in-out infinite;
+}
+@keyframes heroE-planLife {
+  0%, 52% { opacity: 0; }
+  55%     { opacity: 1; }   /* lit just before the stroke starts drawing at 56% */
+  95%     { opacity: 1; }   /* hold extended (was 93%) so all three goals — esp. the house — read fully */
+  99%     { opacity: 0.2; }
+  100%    { opacity: 0; }
+}
+
+.heroE-planSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* box matches the viewBox aspect, so xMidYMid meet fills it with EQUAL x/y
+     scale — no stretch, uniform stroke, label fractions land on dots. */
+}
+/* very-faint horizontal gridlines — a "real chart" read, not a focal element */
+.heroE-grid {
+  stroke: hsl(var(--hero-muted) / 0.14);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.heroE-baseline {
+  stroke: hsl(var(--hero-muted) / 0.3);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* soft gold area-fill under the smooth curve — clipped to the drawing-on of the
+   line via opacity (it fades in alongside the stroke, then holds). */
+.heroE-area {
+  fill: url(#heroE-areaGrad);
+  opacity: 0;
+  animation: heroE-areaFill var(--heroE-loop) ease-in-out infinite;
+}
+@keyframes heroE-areaFill {
+  0%, 58% { opacity: 0; }
+  80%     { opacity: 1; }   /* fills in just behind the drawing line */
+  95%     { opacity: 1; }   /* held to match the extended plan dwell (was 93%) */
+  100%    { opacity: 0; }
+}
+
+.heroE-equity {
+  fill: none;
+  stroke: hsl(var(--hero-gold));
+  /* NO vector-effect: non-scaling-stroke here. It makes the dash pattern resolve
+     in screen-px space, which DEFEATS pathLength=100 normalization — the dasharray
+     100 then only covers ~100 screen-px of a ~500px path, so the draw-on stalls
+     mid-climb and the line never reaches the final (house) milestone. With the
+     aspect-locked meet panel the x/y scales are already equal, so the stroke stays
+     uniform without it. Keep it OFF so pathLength governs the dash and the line
+     always draws fully connected to the peak. */
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 5px hsl(var(--hero-gold) / 0.6))
+    drop-shadow(0 0 12px hsl(var(--hero-gold) / 0.35));
+  /* pathLength="100" normalizes the dash to the path's own length, so dasharray
+     100 + dashoffset 100 = exactly ONE solid, fully connected stroke when drawn. */
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: heroE-draw var(--heroE-loop) ease-in-out infinite;
+}
+/* Deliberate draw: the stroke holds hidden until 56% (the line begins right as
+   the "T" hands off), then draws steadily and earnestly to a full, connected
+   stroke by ~80% — slow enough that the plan feels earned, not whipped on. */
+@keyframes heroE-draw {
+  0%, 56% { stroke-dashoffset: 100; }
+  80%     { stroke-dashoffset: 0; }   /* finishes drawing — fully connected */
+  95%     { stroke-dashoffset: 0; }   /* held to match the extended plan dwell (was 93%) */
+  100%    { stroke-dashoffset: 100; }
+}
+
+/* milestone dots reveal as the drawn line reaches each x — staggered so each
+   dot pops just as the stroke passes it (m1 ~64%, m2 ~73%, m3 ~80%). */
+.heroE-dot {
+  fill: hsl(var(--hero-gold));
+  vector-effect: non-scaling-stroke;
+  stroke: hsl(var(--hero-bg));
+  stroke-width: 1;
+  opacity: 0;
+}
+.heroE-dot--m1 { animation: heroE-dotPop1 var(--heroE-loop) ease-out infinite; }
+.heroE-dot--m2 { animation: heroE-dotPop2 var(--heroE-loop) ease-out infinite; }
+.heroE-dot--m3 { animation: heroE-dotPop3 var(--heroE-loop) ease-out infinite; }
+@keyframes heroE-dotPop1 {
+  0%, 62% { opacity: 0; }
+  66%     { opacity: 1; }
+  95%     { opacity: 1; }   /* held with the rest of the plan (was 93%) */
+  100%    { opacity: 0; }
+}
+@keyframes heroE-dotPop2 {
+  0%, 71% { opacity: 0; }
+  75%     { opacity: 1; }
+  95%     { opacity: 1; }   /* held with the rest of the plan (was 93%) */
+  100%    { opacity: 0; }
+}
+@keyframes heroE-dotPop3 {
+  0%, 76% { opacity: 0; }   /* pulled earlier so the house — the emotional climax — lands sooner */
+  79%     { opacity: 1; }
+  95%     { opacity: 1; }   /* held longer (was 93%) for more dwell before the plan dims */
+  100%    { opacity: 0; }
+}
+
+/* "Goal reached" settle — a soft gold halo blooms under the final milestone the
+   instant the line completes, then settles. Tasteful: a single gentle glow. */
+.heroE-peakGlow {
+  fill: hsl(var(--hero-gold) / 0.5);
+  filter: blur(3px);
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: heroE-peakSettle var(--heroE-loop) ease-out infinite;
+}
+@keyframes heroE-peakSettle {
+  0%, 76%  { opacity: 0; transform: scale(0.3); }
+  80%      { opacity: 0.9; transform: scale(1.15); }  /* the goal lands (pulled earlier with the m3 dot) */
+  85%      { opacity: 0.45; transform: scale(1); }    /* settles into a steady glow */
+  95%      { opacity: 0.4; transform: scale(1); }     /* held to match the extended plan dwell */
+  100%     { opacity: 0; transform: scale(0.3); }
+}
+
+/* ---- life-goal milestone chips ------------------------------------------
+   The emotional payoff: purpose, not profit. Each chip's left/top is its dot's
+   (x,y) as a viewBox fraction; because the SVG box is aspect-locked + meet,
+   that fraction lands exactly on the dot. Each reveals as the line reaches it. */
+.heroE-ms {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px 4px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: hsl(var(--hero-bg) / 0.78);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  border: 1px solid hsl(var(--hero-gold) / 0.5);
+  box-shadow: 0 2px 14px hsl(var(--hero-bg) / 0.7);
+  opacity: 0;
+  --heroE-mx: -50%;
+  animation-duration: var(--heroE-loop);
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-out;
+}
+.heroE-msIcon {
+  font-size: 13px;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px hsl(var(--hero-gold) / 0.4));
+}
+.heroE-msText {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.heroE-msGoal {
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--hero-text));
+}
+.heroE-msState {
+  font-family: "Funnel Sans", "Inter", sans-serif;
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--hero-gold));
+}
+/* anchor the chip just above/below its dot without covering it */
+.heroE-ms--below { transform: translate(var(--heroE-mx), 12px); }
+.heroE-ms--above { transform: translate(var(--heroE-mx), calc(-100% - 12px)); }
+/* The final milestone ("House down payment") rides the top-right corner and
+   carries the LONGEST label, so the percentage-of-own-width pull (--heroE-mx)
+   used by m1/m2 can't GUARANTEE its right edge stays inside the panel at every
+   width. Instead, RIGHT-ANCHOR it: the inline `left` (the dot's x fraction) is
+   overridden to `auto` and the chip is pinned by its RIGHT edge a hair inside
+   the dot. Because it now grows LEFTWARD from a fixed right edge, the chip can
+   never exceed the dot's x (96.7% of the panel) no matter how long the label —
+   eliminating the top-right clipping/crowding risk at 1440/1920 and beyond. A
+   max-width keeps it from ever spanning back under the rising line. */
+.heroE-ms--m3 {
+  left: auto !important; /* override the inline dot-fraction left */
+  /* right edge sits just inside the dot (dot is at 100% − 16/480 ≈ 3.33% from
+     the right; +1.5% extra inward safety margin so the chip clears the edge). */
+  right: 4.8%;
+  max-width: 44%; /* never overrun back across the chart's rising line */
+  --heroE-mx: 0%; /* no horizontal translate — anchoring is via `right` now */
+  transform: translate(0, 8px); /* drop below the peak dot */
+}
+.heroE-ms--m1 { animation-name: heroE-ms1; }
+.heroE-ms--m2 { animation-name: heroE-ms2; }
+.heroE-ms--m3 { animation-name: heroE-ms3; }
+
+@keyframes heroE-ms1 {
+  0%, 64% { opacity: 0; }
+  69%     { opacity: 1; }
+  95%     { opacity: 1; }   /* held with the rest of the plan (was 93%) */
+  100%    { opacity: 0; }
+}
+@keyframes heroE-ms2 {
+  0%, 73% { opacity: 0; }
+  78%     { opacity: 1; }
+  95%     { opacity: 1; }   /* held with the rest of the plan (was 93%) */
+  100%    { opacity: 0; }
+}
+@keyframes heroE-ms3 {
+  0%, 78% { opacity: 0; }   /* the house goal reveals earlier so it gets real dwell time */
+  81%     { opacity: 1; }
+  95%     { opacity: 1; }   /* held past the old 93% so the payoff goal reads fully before the plan dims */
+  100%    { opacity: 0; }
+}
+
+/* =========================================================================
+   ACT 4 — REFLECTION (serif journal line — purpose, not profit)
+   The standalone "House fund 62%" goal chip was folded into the Act-3 life-goal
+   milestones (the house IS the final milestone), so the reflection is now a
+   single, centered serif line reinforcing the emotional payload.
+   ========================================================================= */
+.heroE-reflect {
+  position: absolute;
+  left: 9%;
+  right: 9%;
+  bottom: 9%;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  opacity: 0;
+  animation: heroE-reflectLife var(--heroE-loop) ease-out infinite;
+}
+@keyframes heroE-reflectLife {
+  /* nudged later (was 82%) so the house milestone — now revealing at ~78–81% —
+     gets a clear beat to read before the reflection line fades in over it. */
+  0%, 84% { opacity: 0; transform: translateY(8px); }
+  89%     { opacity: 1; transform: translateY(0); }
+  97%     { opacity: 1; transform: translateY(0); }
+  100%    { opacity: 0; transform: translateY(8px); }
+}
+
+.heroE-journal {
+  font-family: "Newsreader", Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.35;
+  color: hsl(var(--hero-text));
+  max-width: 80%;
+  text-shadow: 0 1px 8px hsl(var(--hero-bg) / 0.8);
+}
+
+/* =========================================================================
+   Compact-height tuning — keep questions/labels legible at 260px tall.
+   ========================================================================= */
+@media (max-height: 300px) {
+  .heroE-markT { font-size: 44px; }
+  .heroE-markGlow { width: 74px; height: 74px; }
+  .heroE-markBloom { width: 130px; height: 130px; }
+  .heroE-glyph--question .heroE-glyphInner { font-size: 14px; }
+  .heroE-journal { font-size: 12px; }
+  .heroE-candle { height: 38px; }
+
+  /* keep the chart, its milestone chips and the journal line from overlapping at
+     short heights: narrow the panel a touch and lift the reflection. The panel
+     stays aspect-locked, so it simply gets smaller — never stretched. */
+  .heroE-plan { width: clamp(300px, 50%, 560px); top: 46%; }
+  .heroE-reflect { bottom: 5%; }
+
+  /* shrink the milestone chips so all three stay legible without colliding */
+  .heroE-msGoal { font-size: 11px; }
+  .heroE-msState { font-size: 7px; }
+  .heroE-msIcon { font-size: 11px; }
+
+  /* at compact heights the top milestone can sit near the stage top — keep it
+     dropped below its dot (already the m3 default) and tighten the offset. m3
+     stays RIGHT-ANCHORED (no horizontal translate) so only the vertical drop
+     changes here. */
+  .heroE-ms--above { transform: translate(var(--heroE-mx), calc(-100% - 8px)); }
+  .heroE-ms--m3 { transform: translate(0, 7px); }
+}
+
+/* =========================================================================
+   REDUCED MOTION — freeze on the calm Act-3/4 end state.
+   Warm twilight settled, gold decision line fully drawn with markers + labels,
+   reflection visible, cold chaos + questions gone. No flicker / bloom pulse.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .heroE-stage *,
+  .heroE-stage {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* chaos + questions dissolved away */
+  .heroE-chaos { opacity: 0; }
+
+  /* the cold has been burned off; the room stays warmed */
+  .heroE-coldVignette { opacity: 0; }
+  .heroE-warmWash { opacity: 1; }
+
+  /* warm twilight settled (soft, static, no pulse) */
+  .heroE-bloom { opacity: 0.4; transform: translate(-50%, -50%) scale(1); }
+  .heroE-bloomRing { opacity: 0; }
+
+  /* the twilight "T" stays LIT — the single most identity-defining element must
+     be present in the safety-critical frozen poster ("the light is here"). The
+     gradient fill + halo are static (shimmer frozen at its rest position). */
+  .heroE-mark { transform: translate(-50%, -50%); }
+  .heroE-markT {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    background-position: 50% 8%; /* freeze shimmer at rest */
+  }
+  .heroE-markGlow { opacity: 0.55; transform: scale(1); }
+  .heroE-markBloom { opacity: 0.5; transform: scale(1); }
+
+  /* equity line fully drawn, area filled, milestone dots + chips visible, the
+     final goal settled — the plan that funds a real life is complete. */
+  .heroE-plan { opacity: 1; }
+  .heroE-equity { stroke-dashoffset: 0; }
+  .heroE-area { opacity: 1; }
+  .heroE-dot { opacity: 1; }
+  .heroE-peakGlow { opacity: 0.4; transform: scale(1); }
+  /* keep each chip's anchor offset (only opacity was animated) */
+  .heroE-ms { opacity: 1; }
+  .heroE-ms--below { transform: translate(var(--heroE-mx), 12px); }
+  .heroE-ms--above { transform: translate(var(--heroE-mx), calc(-100% - 12px)); }
+  /* m3 is right-anchored (left:auto; right:4.8%) — no horizontal translate. */
+  .heroE-ms--m3 { transform: translate(0, 8px); }
+
+  /* reflection settled */
+  .heroE-reflect { opacity: 1; transform: none; }
+}
