@@ -1,6 +1,7 @@
 // src/components/strategy-builder/IndicatorTile.tsx
 import type { LucideIcon } from "lucide-react";
 import { Play } from "lucide-react";
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { glossary } from "@/lib/strategyGlossary";
 import TermInfo from "./TermInfo";
@@ -18,6 +19,7 @@ export function IndicatorTile({
   termKey?: string;
   meaning?: string;
 }) {
+  const tipId = useId();
   const entry = termKey ? glossary(termKey) : undefined;
   const plain = meaning ?? entry?.plain;
   const hasScene = explainerKind !== "none";
@@ -29,6 +31,7 @@ export function IndicatorTile({
         type="button"
         onClick={onClick}
         aria-pressed={selected}
+        aria-describedby={showCard ? tipId : undefined}
         className={cn(
           "relative flex min-h-[96px] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border bg-card px-2 py-4 text-center transition-all duration-200",
           selected
@@ -36,11 +39,6 @@ export function IndicatorTile({
             : "border-border-subtle hover:-translate-y-0.5 hover:border-border-strong",
         )}
       >
-        {termKey && (
-          <span className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
-            <TermInfo termKey={termKey} />
-          </span>
-        )}
         {Icon && (
           <span className={cn(
             "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
@@ -51,9 +49,15 @@ export function IndicatorTile({
         )}
         <span className="text-[12.5px] font-medium leading-tight text-fg-primary">{label}</span>
       </button>
+      {termKey && (
+        <span className="absolute right-1.5 top-1.5 z-10" onClick={(e) => e.stopPropagation()}>
+          <TermInfo termKey={termKey} />
+        </span>
+      )}
 
       {showCard && (
         <div
+          id={tipId}
           role="tooltip"
           className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-30 w-64 -translate-x-1/2 rounded-2xl border border-border-strong bg-card p-4 opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
         >

@@ -1,6 +1,6 @@
 // src/pages/StrategyLab.tsx
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -77,12 +77,12 @@ export default function StrategyLab() {
               >
                 <Sparkles className="h-4 w-4 text-gold-deep" /> Templates &amp; saved
               </button>
-              <a
-                href="/learn"
+              <Link
+                to="/learn"
                 className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-4 py-2 font-cap text-sm font-medium text-fg-primary hover:border-ink"
               >
                 <GraduationCap className="h-4 w-4 text-gold-deep" /> 2-min primer
-              </a>
+              </Link>
             </div>
           </div>
 

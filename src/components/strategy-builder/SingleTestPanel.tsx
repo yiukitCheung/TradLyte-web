@@ -293,7 +293,7 @@ const SingleTestPanel = forwardRef<
   return (
     <>
       {/* Composer: config (left) + sticky receipt rail (right) */}
-      <section className="grid gap-8 px-6 pb-16 md:px-12 lg:grid-cols-[1fr_360px]">
+      <section className="grid gap-10 pb-16 lg:grid-cols-[1fr_380px]">
         <div className="flex flex-col gap-8">
           {pickerSlot}
 
@@ -414,7 +414,7 @@ const SingleTestPanel = forwardRef<
 
       {/* Results (full width, after a run) */}
       {(isBacktesting || backtestResult) && (
-        <section ref={resultsRef} className="animate-fade-in px-6 pb-32 md:px-12">
+        <section ref={resultsRef} className="animate-fade-in pb-32">
           <div className="flex flex-col gap-8">
             <div className="rounded-3xl border border-border-subtle bg-card p-8 md:p-10">
               <h3 className="font-serif text-2xl font-medium text-fg-primary">Equity curve</h3>

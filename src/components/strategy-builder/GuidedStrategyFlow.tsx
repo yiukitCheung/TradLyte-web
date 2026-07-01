@@ -118,34 +118,36 @@ const Tile = ({
   Icon?: LucideIcon;
   term?: string;
 }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    aria-pressed={selected}
-    className={cn(
-      "group relative flex min-h-[96px] flex-col items-center justify-center gap-2.5 rounded-2xl border bg-card px-2 py-4 text-center transition-all duration-200",
-      selected
-        ? "border-2 border-gold bg-gold/[0.04] shadow-[0_6px_24px_-16px_hsl(var(--accent)/0.5)]"
-        : "border-border-subtle hover:-translate-y-0.5 hover:border-border-strong",
-    )}
-  >
+  <div className="group relative">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cn(
+        "relative flex min-h-[96px] w-full flex-col items-center justify-center gap-2.5 rounded-2xl border bg-card px-2 py-4 text-center transition-all duration-200",
+        selected
+          ? "border-2 border-gold bg-gold/[0.04] shadow-[0_6px_24px_-16px_hsl(var(--accent)/0.5)]"
+          : "border-border-subtle hover:-translate-y-0.5 hover:border-border-strong",
+      )}
+    >
+      {Icon && (
+        <span
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+            selected ? "bg-gold/15 text-gold-deep" : "bg-surface-sunken text-fg-secondary group-hover:text-fg-primary",
+          )}
+        >
+          <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+        </span>
+      )}
+      <span className="text-[12.5px] font-medium leading-tight text-fg-primary">{label}</span>
+    </button>
     {term && (
-      <span className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
+      <span className="absolute right-1.5 top-1.5 z-10" onClick={(e) => e.stopPropagation()}>
         <TermInfo termKey={term} />
       </span>
     )}
-    {Icon && (
-      <span
-        className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
-          selected ? "bg-gold/15 text-gold-deep" : "bg-surface-sunken text-fg-secondary group-hover:text-fg-primary",
-        )}
-      >
-        <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-      </span>
-    )}
-    <span className="text-[12.5px] font-medium leading-tight text-fg-primary">{label}</span>
-  </button>
+  </div>
 );
 
 const EditorShell = ({ children }: { children: React.ReactNode }) => (
