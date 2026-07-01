@@ -87,6 +87,11 @@ export default function BatchTestPanel({ initialBatchRunId }: BatchTestPanelProp
     if (user) listBatchRuns(user.id).then(setPastRuns).catch(() => {});
   }, [user]);
 
+  const openPastRun = useCallback(async (id: string) => {
+    const detail = await getBatchRun(id);
+    if (detail) setActiveRun(detail);
+  }, []);
+
   // Auto-open a run from the prop on mount.
   useEffect(() => {
     if (initialBatchRunId) {
@@ -118,11 +123,6 @@ export default function BatchTestPanel({ initialBatchRunId }: BatchTestPanelProp
       toast.error("Could not load your watchlist.");
     }
   }, [user, tickerText]);
-
-  const openPastRun = useCallback(async (id: string) => {
-    const detail = await getBatchRun(id);
-    if (detail) setActiveRun(detail);
-  }, []);
 
   const done = cells.filter((c) => c.status === "done" || c.status === "failed").length;
 
