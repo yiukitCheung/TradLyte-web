@@ -49,6 +49,7 @@ import { SetupPanel, EntryPanel, ExitPanel } from "@/components/strategy-builder
 import { LessonDrawerProvider } from "@/components/strategy-builder/LessonDrawer";
 import StrategySentenceCard from "@/components/strategy-builder/StrategySentenceCard";
 import TermInfo from "@/components/strategy-builder/TermInfo";
+import StepGuide from "@/components/strategy-builder/StepGuide";
 
 type Tab = "setup" | "entry" | "exit";
 const TABS: { id: Tab; label: string }[] = [
@@ -373,7 +374,8 @@ const StrategyBuilder = () => {
               </div>
 
               {/* Active panel */}
-              <div className="animate-fade-in">
+              <div className="animate-fade-in flex flex-col gap-6">
+                <StepGuide step={tab} />
                 {tab === "setup" && (
                   <SetupPanel draft={draft} patchSetup={patchSetup} activeTile={activeSetupTile} onSelectTile={selectSetupTile} />
                 )}
