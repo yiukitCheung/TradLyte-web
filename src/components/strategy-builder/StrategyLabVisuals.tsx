@@ -353,3 +353,97 @@ export function OpenMarketVisual({ active }: { active?: boolean }) {
     </svg>
   );
 }
+
+// --- Combined "price + indicator + buy" scenes (hybrid headline set) ---
+
+function BuyRing({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <>
+      <circle cx={cx} cy={cy} r="11" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" />
+      <text x={cx} y={cy + 22} textAnchor="middle" className="fill-positive" fontSize="9" fontWeight={500}>buy</text>
+    </>
+  );
+}
+
+/** Candles + an RSI sub-line crossing up through the threshold; entry candle ringed. */
+export function RsiEntryScene({ active }: { active?: boolean }) {
+  return (
+    <svg viewBox="0 0 150 96" className="h-24 w-full max-w-[160px] overflow-visible" aria-hidden>
+      <g>
+        <line x1="18" y1="12" x2="18" y2="44" className="stroke-negative/70" strokeWidth="1.5" />
+        <rect x="13" y="20" width="10" height="16" rx="1.5" className="fill-negative/80" />
+        <line x1="42" y1="16" x2="42" y2="46" className="stroke-negative/70" strokeWidth="1.5" />
+        <rect x="37" y="24" width="10" height="14" rx="1.5" className="fill-negative/80" />
+        <line x1="66" y1="10" x2="66" y2="40" className="stroke-positive/70" strokeWidth="1.5" />
+        <rect x="61" y="16" width="10" height="16" rx="1.5" className={cn("fill-positive/80", active && "candle-grow")} />
+        <line x1="96" y1="4" x2="96" y2="34" className="stroke-positive/70" strokeWidth="1.5" />
+        <rect x="91" y="9" width="10" height="18" rx="1.5" className={cn("fill-positive/80", active && "candle-grow")} />
+        <BuyRing cx={96} cy={18} />
+      </g>
+      <line x1="6" y1="74" x2="144" y2="74" className="stroke-fg-muted/60" strokeWidth="1" strokeDasharray="3 3" />
+      <text x="8" y="70" className="fill-fg-muted" fontSize="8">RSI 50</text>
+      <path d="M6 86 Q 40 84, 66 80 T 120 62" fill="none" stroke="hsl(var(--accent-deep))" strokeWidth="2"
+            strokeLinecap="round" pathLength={1} className={cn(active && "signal-draw")} />
+    </svg>
+  );
+}
+
+/** Candles + fast/slow averages crossing; entry candle ringed at the cross. */
+export function MaCrossScene({ active }: { active?: boolean }) {
+  return (
+    <svg viewBox="0 0 150 96" className="h-24 w-full max-w-[160px] overflow-visible" aria-hidden>
+      <line x1="18" y1="30" x2="18" y2="58" className="stroke-fg-muted/60" strokeWidth="1.5" />
+      <rect x="13" y="38" width="10" height="14" rx="1.5" className="fill-fg-muted/50" />
+      <line x1="48" y1="26" x2="48" y2="54" className="stroke-fg-muted/60" strokeWidth="1.5" />
+      <rect x="43" y="32" width="10" height="14" rx="1.5" className="fill-fg-muted/50" />
+      <line x1="90" y1="14" x2="90" y2="42" className="stroke-positive/70" strokeWidth="1.5" />
+      <rect x="85" y="20" width="10" height="16" rx="1.5" className={cn("fill-positive/80", active && "candle-grow")} />
+      <path d="M6 66 Q 50 60, 90 34 T 144 16" fill="none" stroke="hsl(var(--accent-deep))" strokeWidth="2.5"
+            strokeLinecap="round" pathLength={1} className={cn(active && "signal-draw")} />
+      <path d="M6 54 Q 60 52, 100 44 T 144 34" fill="none" stroke="hsl(var(--fg-muted))" strokeWidth="2" opacity={0.55} />
+      <BuyRing cx={90} cy={28} />
+    </svg>
+  );
+}
+
+/** Candles + a MACD histogram flipping positive; entry candle ringed at the flip. */
+export function MacdScene({ active }: { active?: boolean }) {
+  const bars = [
+    { x: 12, h: -10 }, { x: 30, h: -6 }, { x: 48, h: -2 },
+    { x: 66, h: 4 }, { x: 84, h: 9 }, { x: 102, h: 12 },
+  ];
+  return (
+    <svg viewBox="0 0 150 96" className="h-24 w-full max-w-[160px] overflow-visible" aria-hidden>
+      <line x1="78" y1="10" x2="78" y2="42" className="stroke-positive/70" strokeWidth="1.5" />
+      <rect x="73" y="16" width="10" height="18" rx="1.5" className={cn("fill-positive/80", active && "candle-grow")} />
+      <BuyRing cx={78} cy={22} />
+      <line x1="6" y1="72" x2="144" y2="72" className="stroke-fg-muted/60" strokeWidth="1" />
+      {bars.map((b) => (
+        <rect key={b.x} x={b.x} y={b.h >= 0 ? 72 - b.h : 72} width="10" height={Math.abs(b.h)} rx="1"
+              className={b.h >= 0 ? "fill-positive/70" : "fill-negative/60"} />
+      ))}
+    </svg>
+  );
+}
+
+/** Resolves an ExplainerKind to the right illustration (bespoke or reused). */
+export function IndicatorScene({ kind, active, pattern }: { kind: string; active?: boolean; pattern?: string }) {
+  switch (kind) {
+    case "rsi-entry": return <RsiEntryScene active={active} />;
+    case "ma-cross": return <MaCrossScene active={active} />;
+    case "macd": return <MacdScene active={active} />;
+    case "candle": return <CandlePatternVisual pattern={pattern ?? "BULLISH_ENGULFING"} active={active} />;
+    case "price-cross": return <PriceCrossVisual active={active} />;
+    case "bollinger": return <CrossoverVisual active={active} />;
+    case "stochastic": return <RsiVisual level={50} active={active} />;
+    case "atr": return <CrossoverVisual active={active} />;
+    case "bracket": return <ExitVisual kind="bracket" active={active} />;
+    case "take-profit": return <ExitVisual kind="take_profit" active={active} />;
+    case "stop-loss": return <ExitVisual kind="stop_loss" active={active} />;
+    case "trailing": return <ExitVisual kind="trailing" active={active} />;
+    case "time": return <ExitVisual kind="time" active={active} />;
+    case "signal-flip": return <ExitVisual kind="death_cross" active={active} />;
+    case "indicator-exit": return <RsiVisual level={50} active={active} />;
+    default: return null;
+  }
+}
