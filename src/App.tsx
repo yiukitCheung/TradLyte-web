@@ -2,15 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import Index from "./pages/Index";
 import About from "./pages/About";
 import Auth from "./pages/Auth";
 import UserDashboard from "./pages/UserDashboard";
 import StrategyLab from "./pages/StrategyLab";
 import StrategyLibrary from "./pages/StrategyLibrary";
-import BatchLab from "./pages/BatchLab";
-import BatchAnalytics from "./pages/BatchAnalytics";
 import Watchlist from "./pages/Watchlist";
 import AuthCallback from "./pages/AuthCallback";
 import Goals from "./pages/Goals";
@@ -25,6 +23,11 @@ import Admin from "./pages/Admin";
 import Learn from "./pages/Learn";
 import PurposeOnboarding from "./components/onboarding/PurposeOnboarding";
 import { FinancialVaultProvider } from "./hooks/useFinancialVault";
+
+function BatchRunRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to="/strategy-builder" replace state={{ tab: "batch", batchRunId: id }} />;
+}
 
 const queryClient = new QueryClient();
 
@@ -44,9 +47,8 @@ const App = () => (
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/strategy-builder" element={<StrategyLab />} />
           <Route path="/strategy-library" element={<StrategyLibrary />} />
-          <Route path="/strategy-lab/batch" element={<BatchLab />} />
-          <Route path="/strategy-lab/batch/:id" element={<BatchAnalytics />} />
-          {/* /strategy-lab/batch/:id — saved batch analytics */}
+          <Route path="/strategy-lab/batch" element={<Navigate to="/strategy-builder" replace state={{ tab: "batch" }} />} />
+          <Route path="/strategy-lab/batch/:id" element={<BatchRunRedirect />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/journal" element={<Journal />} />
