@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { ArrowRight, Play, RotateCcw, Activity, Loader2, Bookmark, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowRight, Play, Loader2, Bookmark } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +36,6 @@ import {
   type BacktestRequestBody,
 } from "@/lib/strategyDraft";
 import {
-  BACKTEST_RECIPES,
   getRecipeById,
   applyTimeframeToComponents,
   type BacktestRecipe,
@@ -48,7 +47,8 @@ import StepGuide from "@/components/strategy-builder/StepGuide";
 import { useAuth } from "@/hooks/useAuth";
 
 export type SingleTestHandle = {
-  loadDraft: (draft: StrategyDraft, opts?: { symbol?: string; run?: boolean }) => void;
+  loadDraft: (draft: StrategyDraft, opts?: { symbol?: string }) => void; // `run` option dropped — unused, was stale-closure-broken (T6 review I1)
+  applyRecipe: (recipeId: string) => void;
 };
 
 type Tab = "setup" | "entry" | "exit";
@@ -83,7 +83,6 @@ const SingleTestPanel = forwardRef<
   const [backtestEnd, setBacktestEnd] = useState(() => ymdDaysAgo(0));
   const [isBacktesting, setIsBacktesting] = useState(false);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
-  const [showTemplates, setShowTemplates] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   // Setup tile memory — preserves each lens's settings when switching tiles.
@@ -222,7 +221,6 @@ const SingleTestPanel = forwardRef<
     setDraft(recipeDraft);
     setActiveSetupTile(deriveSetupTileKey(recipeDraft));
     setActiveRecipe(recipe);
-    setShowTemplates(false);
     toast.message(`Running ${recipe.title}…`);
     await runBacktest(recipe);
   };
@@ -282,10 +280,9 @@ const SingleTestPanel = forwardRef<
     setActiveRecipe(null);
     if (opts?.symbol) setBacktestSymbol(opts.symbol);
     setTab("setup");
-    if (opts?.run) void runBacktest();
   };
 
-  useImperativeHandle(ref, () => ({ loadDraft }));
+  useImperativeHandle(ref, () => ({ loadDraft, applyRecipe }));
 
   // On mount, seed from initialDraft/initialSymbol (replaces the old location.state effect).
   useEffect(() => {
@@ -295,41 +292,6 @@ const SingleTestPanel = forwardRef<
 
   return (
     <>
-      {/* "Start from a template" toggle + templates disclosure */}
-      <section className="px-6 pb-6 md:px-12">
-        <button
-          type="button"
-          onClick={() => setShowTemplates((s) => !s)}
-          className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 font-cap text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <Sparkles className="h-4 w-4" /> Start from a template
-          <ChevronDown className={cn("h-4 w-4 transition-transform", showTemplates && "rotate-180")} />
-        </button>
-      </section>
-
-      {showTemplates && (
-        <section className="animate-slide-in px-6 pb-10 md:px-12">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {BACKTEST_RECIPES.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => void applyRecipe(r.id)}
-                disabled={isBacktesting}
-                className="group flex flex-col gap-3 rounded-2xl border border-border-subtle bg-card p-6 text-left transition-all hover:border-gold/40 hover:shadow-sm disabled:opacity-60"
-              >
-                <Activity className="h-5 w-5 text-gold-deep" />
-                <h3 className="font-serif text-lg font-medium text-fg-primary">{r.title}</h3>
-                <p className="text-[14px] leading-relaxed text-fg-secondary">{r.description}</p>
-                <span className="mt-1 flex items-center gap-1.5 font-cap text-sm font-medium text-ink opacity-0 transition-opacity group-hover:opacity-100">
-                  {isBacktesting ? "Running…" : "Load + run"} <ArrowRight className="h-4 w-4" />
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Composer: config (left) + sticky receipt rail (right) */}
       <section className="grid gap-8 px-6 pb-16 md:px-12 lg:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-8">

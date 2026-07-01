@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { LessonDrawerProvider } from "@/components/strategy-builder/LessonDrawer";
 import SingleTestPanel, { type SingleTestHandle } from "@/components/strategy-builder/SingleTestPanel";
 import BatchTestPanel from "@/components/strategy-builder/BatchTestPanel";
+import StrategyPicker from "@/components/strategy-builder/StrategyPicker";
 import type { StrategyDraft } from "@/lib/strategyDraft";
 
 type LabTab = "single" | "batch";
@@ -114,7 +115,13 @@ export default function StrategyLab() {
                 ref={singleRef}
                 initialDraft={initial.draft}
                 initialSymbol={initial.symbol}
-                pickerSlot={null}
+                pickerSlot={pickerOpen ? (
+                  <StrategyPicker
+                    onPickTemplate={(id) => singleRef.current?.applyRecipe(id)}
+                    onPickSaved={(draft, symbol) => singleRef.current?.loadDraft(draft, { symbol })}
+                    onClose={() => setPickerOpen(false)}
+                  />
+                ) : null}
               />
             </div>
             <div className={tab === "batch" ? "" : "hidden"}>
