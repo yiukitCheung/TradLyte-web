@@ -9,6 +9,8 @@ import Auth from "./pages/Auth";
 import UserDashboard from "./pages/UserDashboard";
 import StrategyBuilder from "./pages/StrategyBuilder";
 import StrategyLibrary from "./pages/StrategyLibrary";
+import BatchLab from "./pages/BatchLab";
+import BatchAnalytics from "./pages/BatchAnalytics";
 import Watchlist from "./pages/Watchlist";
 import AuthCallback from "./pages/AuthCallback";
 import Goals from "./pages/Goals";
@@ -42,6 +44,9 @@ const App = () => (
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/strategy-builder" element={<StrategyBuilder />} />
           <Route path="/strategy-library" element={<StrategyLibrary />} />
+          <Route path="/strategy-lab/batch" element={<BatchLab />} />
+          <Route path="/strategy-lab/batch/:id" element={<BatchAnalytics />} />
+          {/* /strategy-lab/batch/:id — saved batch analytics */}
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/journal" element={<Journal />} />

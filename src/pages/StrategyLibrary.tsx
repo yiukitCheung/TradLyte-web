@@ -4,7 +4,7 @@ import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
-import { ArrowRight, Copy, Trash2, Play, FlaskConical } from "lucide-react";
+import { ArrowRight, Copy, Trash2, Play, FlaskConical, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -111,12 +111,20 @@ const StrategyLibrary = () => {
               Every strategy you've saved from the Lab — reopen one to tweak it, duplicate it to branch an idea, or replay it on a new stock.
             </p>
           </div>
-          <Link
-            to="/strategy-builder"
-            className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
-          >
-            <FlaskConical className="h-4 w-4" /> Open Strategy Lab
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/strategy-lab/batch"
+              className="inline-flex items-center gap-2 rounded-full border border-border-subtle px-5 py-3 text-sm font-semibold text-fg-primary hover:border-border-strong"
+            >
+              <Layers className="h-4 w-4" /> Batch backtest
+            </Link>
+            <Link
+              to="/strategy-builder"
+              className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+            >
+              <FlaskConical className="h-4 w-4" /> Open Strategy Lab
+            </Link>
+          </div>
         </div>
 
         {strategies.length === 0 ? (

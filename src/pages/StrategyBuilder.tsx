@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useRequireOnboarding } from "@/hooks/useRequireOnboarding";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { ArrowRight, Play, RotateCcw, Activity, Loader2, Bookmark, Library, GraduationCap, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowRight, Play, RotateCcw, Activity, Loader2, Bookmark, Library, GraduationCap, ChevronDown, Sparkles, Layers } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -316,6 +316,9 @@ const StrategyBuilder = () => {
                 <Sparkles className="h-4 w-4" /> Start from a template
                 <ChevronDown className={cn("h-4 w-4 transition-transform", showTemplates && "rotate-180")} />
               </button>
+              <Link to="/strategy-lab/batch" className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-5 py-2.5 font-cap text-sm font-medium text-fg-primary transition-colors hover:border-ink">
+                <Layers className="h-4 w-4 text-gold-deep" /> Batch test
+              </Link>
               <Link to="/strategy-library" className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-card px-5 py-2.5 font-cap text-sm font-medium text-fg-primary transition-colors hover:border-ink">
                 <Library className="h-4 w-4 text-gold-deep" /> Saved strategies
               </Link>
