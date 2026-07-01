@@ -44,6 +44,8 @@ import {
 } from "@/lib/strategyDraft";
 import TermInfo from "./TermInfo";
 import { CandlePatternVisual, CANDLE_PATTERN_META, CrossoverVisual, RsiVisual } from "./StrategyLabVisuals";
+import { IndicatorTile } from "./IndicatorTile";
+import { explainerKindForSetupTile, explainerKindForExitMode } from "@/lib/strategyLabExplainers";
 
 type PatchSetup = (p: Partial<StrategyDraft["setup"]>) => void;
 type PatchTrigger = (p: Partial<StrategyDraft["trigger"]>) => void;
@@ -301,9 +303,6 @@ export function SetupPanel({
   activeTile: string;
   onSelectTile: (key: string) => void;
 }) {
-  const simple = SETUP_TILES.filter((t) => t.group === "simple");
-  const more = SETUP_TILES.filter((t) => t.group === "more");
-
   const editor = () => {
     if (activeTile === "none") {
       return (
@@ -383,18 +382,20 @@ export function SetupPanel({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Start simple</p>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-          {simple.map((t) => (
-            <Tile key={t.key} label={t.label} term={t.term} Icon={SETUP_ICONS[t.key]} selected={activeTile === t.key} onClick={() => onSelectTile(t.key)} />
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-3">
-        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">More indicators</p>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-          {more.map((t) => (
-            <Tile key={t.key} label={t.label} term={t.term} Icon={SETUP_ICONS[t.key]} selected={activeTile === t.key} onClick={() => onSelectTile(t.key)} />
+        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+          Choose a setup condition · hover a tile to see what it means
+        </p>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-6">
+          {SETUP_TILES.map((t) => (
+            <IndicatorTile
+              key={t.key}
+              label={t.label}
+              termKey={t.term}
+              explainerKind={explainerKindForSetupTile(t.key)}
+              Icon={SETUP_ICONS[t.key]}
+              selected={activeTile === t.key}
+              onClick={() => onSelectTile(t.key)}
+            />
           ))}
         </div>
       </div>
@@ -501,9 +502,6 @@ export function ExitPanel({ draft, patchExit }: { draft: StrategyDraft; patchExi
     patchExit({ mode: "stack", stack: next });
   };
   const setStackPct = (k: ExitLeafKind, pct: number) => patchExit({ mode: "stack", stack: stack.map((r) => (r.kind === k ? { ...r, pct } : r)) });
-
-  const common = EXIT_TILES.filter((t) => t.group === "common");
-  const advanced = EXIT_TILES.filter((t) => t.group === "advanced");
 
   const editor = () => {
     if (mode === "bracket" || mode === "take_profit" || mode === "stop_loss") {
@@ -612,18 +610,20 @@ export function ExitPanel({ draft, patchExit }: { draft: StrategyDraft; patchExi
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Common</p>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-          {common.map((t) => (
-            <Tile key={t.key} label={t.label} term={t.term} Icon={EXIT_ICONS[t.key]} selected={mode === t.key} onClick={() => patchExit({ mode: t.key })} />
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-3">
-        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Advanced</p>
-        <div className="grid grid-cols-3 gap-3">
-          {advanced.map((t) => (
-            <Tile key={t.key} label={t.label} term={t.term} Icon={EXIT_ICONS[t.key]} selected={mode === t.key} onClick={() => patchExit({ mode: t.key })} />
+        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+          Choose how a trade closes · hover a tile to see what it means
+        </p>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-6">
+          {EXIT_TILES.map((t) => (
+            <IndicatorTile
+              key={t.key}
+              label={t.label}
+              termKey={t.term}
+              explainerKind={explainerKindForExitMode(t.key)}
+              Icon={EXIT_ICONS[t.key]}
+              selected={mode === t.key}
+              onClick={() => patchExit({ mode: t.key })}
+            />
           ))}
         </div>
       </div>
