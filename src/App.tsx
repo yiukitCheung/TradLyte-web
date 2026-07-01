@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import About from "./pages/About";
 import Auth from "./pages/Auth";
 import UserDashboard from "./pages/UserDashboard";
-import StrategyBuilder from "./pages/StrategyBuilder";
+import StrategyLab from "./pages/StrategyLab";
 import StrategyLibrary from "./pages/StrategyLibrary";
 import BatchLab from "./pages/BatchLab";
 import BatchAnalytics from "./pages/BatchAnalytics";
@@ -42,7 +42,7 @@ const App = () => (
           <Route path="/auth-callback" element={<AuthCallback />} />
           <Route path="/onboarding" element={<PurposeOnboarding />} />
           <Route path="/dashboard" element={<UserDashboard />} />
-          <Route path="/strategy-builder" element={<StrategyBuilder />} />
+          <Route path="/strategy-builder" element={<StrategyLab />} />
           <Route path="/strategy-library" element={<StrategyLibrary />} />
           <Route path="/strategy-lab/batch" element={<BatchLab />} />
           <Route path="/strategy-lab/batch/:id" element={<BatchAnalytics />} />
