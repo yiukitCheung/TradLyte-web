@@ -92,8 +92,7 @@ export default function BatchTestPanel({ initialBatchRunId }: BatchTestPanelProp
     if (initialBatchRunId) {
       void openPastRun(initialBatchRunId);
     }
-    // Only run once on mount.
-  }, [initialBatchRunId]);
+  }, [initialBatchRunId, openPastRun]);
 
   const tickers = useMemo(() => parseTickers(tickerText), [tickerText]);
   const cellCount = useMemo(() => batchCellCount({ tickers, strategyIds }), [tickers, strategyIds]);
@@ -120,10 +119,10 @@ export default function BatchTestPanel({ initialBatchRunId }: BatchTestPanelProp
     }
   }, [user, tickerText]);
 
-  const openPastRun = async (id: string) => {
+  const openPastRun = useCallback(async (id: string) => {
     const detail = await getBatchRun(id);
     if (detail) setActiveRun(detail);
-  };
+  }, []);
 
   const done = cells.filter((c) => c.status === "done" || c.status === "failed").length;
 
@@ -256,16 +255,8 @@ export default function BatchTestPanel({ initialBatchRunId }: BatchTestPanelProp
         <BatchResults
           run={activeRun}
           onDdCapChange={(pct) => { void updateBatchDdCap(activeRun.id, pct); }}
+          onNewBatch={() => setActiveRun(null)}
         />
-        <div className="flex justify-center pb-4 pt-2">
-          <button
-            type="button"
-            onClick={() => setActiveRun(null)}
-            className="inline-flex items-center gap-2 rounded-full border border-border-subtle px-5 py-2.5 text-sm text-fg-secondary hover:text-fg-primary"
-          >
-            New batch
-          </button>
-        </div>
       </div>
     );
   }

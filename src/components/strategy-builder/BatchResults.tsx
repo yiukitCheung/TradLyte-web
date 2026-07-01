@@ -73,10 +73,12 @@ export default function BatchResults({
   run,
   onSaveStrategy,
   onDdCapChange,
+  onNewBatch,
 }: {
   run: SavedBatchRunDetail;
   onSaveStrategy?: (strategyId: string) => void;
   onDdCapChange?: (pct: number) => void;
+  onNewBatch?: () => void;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -182,9 +184,15 @@ export default function BatchResults({
   return (
     <>
       <div className="flex items-center justify-between">
-        <Link to="/strategy-lab/batch" className="inline-flex items-center gap-1.5 font-cap text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-secondary hover:text-fg-primary">
-          <ArrowLeft className="h-3.5 w-3.5" /> New batch
-        </Link>
+        {onNewBatch ? (
+          <button type="button" onClick={onNewBatch} className="inline-flex items-center gap-1.5 font-cap text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-secondary hover:text-fg-primary">
+            <ArrowLeft className="h-3.5 w-3.5" /> New batch
+          </button>
+        ) : (
+          <Link to="/strategy-lab/batch" className="inline-flex items-center gap-1.5 font-cap text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-secondary hover:text-fg-primary">
+            <ArrowLeft className="h-3.5 w-3.5" /> New batch
+          </Link>
+        )}
         <p className="font-cap text-[11px] uppercase tracking-[0.14em] text-gold-deep">
           {completed.length} of {cells.length} runs · {run.tickers.length} tickers × {run.strategyIds.length} strategies
         </p>
