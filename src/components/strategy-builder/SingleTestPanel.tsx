@@ -43,7 +43,7 @@ import {
 import { SetupPanel, EntryPanel, ExitPanel } from "@/components/strategy-builder/GuidedStrategyFlow";
 import StrategySentenceCard from "@/components/strategy-builder/StrategySentenceCard";
 import TermInfo from "@/components/strategy-builder/TermInfo";
-import StepGuide from "@/components/strategy-builder/StepGuide";
+import StepGuide, { STEP_QUESTIONS, STEP_HINTS } from "@/components/strategy-builder/StepGuide";
 import { useAuth } from "@/hooks/useAuth";
 
 export type SingleTestHandle = {
@@ -52,11 +52,6 @@ export type SingleTestHandle = {
 };
 
 type Tab = "setup" | "entry" | "exit";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "setup", label: "Setup" },
-  { id: "entry", label: "Entry" },
-  { id: "exit", label: "Exit" },
-];
 
 function ymdDaysAgo(daysAgo: number): string {
   const d = new Date();
@@ -297,52 +292,53 @@ const SingleTestPanel = forwardRef<
         <div className="flex flex-col gap-8">
           {pickerSlot}
 
-          {/* Tabs */}
-          <div className="flex items-center gap-1 rounded-full border border-border-subtle bg-card p-1">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={cn(
-                  "flex-1 rounded-full px-4 py-2.5 font-cap text-sm font-semibold transition-colors",
-                  tab === t.id ? "bg-ink text-white" : "text-fg-secondary hover:text-fg-primary",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {/* Self-answering stepper — navigation that doubles as the live summary */}
+          <StepGuide step={tab} onStep={setTab} draft={draft} />
 
-          {/* Active panel */}
-          <div className="animate-fade-in flex flex-col gap-6">
-            <StepGuide step={tab} />
-            {tab === "setup" && (
-              <SetupPanel draft={draft} patchSetup={patchSetup} activeTile={activeSetupTile} onSelectTile={selectSetupTile} />
-            )}
-            {tab === "entry" && <EntryPanel draft={draft} patchTrigger={patchTrigger} />}
-            {tab === "exit" && <ExitPanel draft={draft} patchExit={patchExit} />}
-          </div>
+          {/* One question card: question → choices → editor → back/next */}
+          <div className="rounded-3xl border border-border-subtle bg-card p-5 md:p-7">
+            <h2 className="font-serif text-[22px] italic leading-snug text-fg-primary md:text-[24px]">
+              {STEP_QUESTIONS[tab]}
+            </h2>
+            <p className="mt-1.5 max-w-[640px] text-[13.5px] leading-relaxed text-fg-secondary">{STEP_HINTS[tab]}</p>
 
-          {/* Tab nav */}
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              disabled={tab === "setup"}
-              onClick={() => setTab(tab === "exit" ? "entry" : "setup")}
-              className="font-cap text-sm text-fg-muted hover:text-fg-primary disabled:opacity-0"
-            >
-              ← Back
-            </button>
-            {tab !== "exit" && (
+            <div key={tab} className="animate-fade-in mt-6">
+              {tab === "setup" && (
+                <SetupPanel draft={draft} patchSetup={patchSetup} activeTile={activeSetupTile} onSelectTile={selectSetupTile} />
+              )}
+              {tab === "entry" && <EntryPanel draft={draft} patchTrigger={patchTrigger} />}
+              {tab === "exit" && <ExitPanel draft={draft} patchExit={patchExit} />}
+            </div>
+
+            <div className="mt-8 flex items-center justify-between border-t border-border-subtle pt-5">
               <button
                 type="button"
-                onClick={() => setTab(tab === "setup" ? "entry" : "exit")}
-                className="inline-flex items-center gap-2 rounded-full border border-border-strong px-5 py-2.5 font-cap text-sm font-semibold text-fg-primary transition-colors hover:border-ink"
+                disabled={tab === "setup"}
+                onClick={() => setTab(tab === "exit" ? "entry" : "setup")}
+                className="font-cap text-sm text-fg-muted hover:text-fg-primary disabled:opacity-0"
               >
-                Next: {tab === "setup" ? "Entry" : "Exit"} <ArrowRight className="h-4 w-4" />
+                ← Back
               </button>
-            )}
+              {tab !== "exit" ? (
+                <button
+                  type="button"
+                  onClick={() => setTab(tab === "setup" ? "entry" : "exit")}
+                  className="inline-flex items-center gap-2 rounded-full border border-border-strong px-5 py-2.5 font-cap text-sm font-semibold text-fg-primary transition-colors hover:border-ink"
+                >
+                  Next: {tab === "setup" ? "Entry" : "Exit"} <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void runBacktest()}
+                  disabled={isBacktesting}
+                  className="inline-flex items-center gap-2 rounded-full bg-ink px-6 py-2.5 font-cap text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {isBacktesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  {isBacktesting ? "Running…" : "Run backtest"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -351,6 +347,7 @@ const SingleTestPanel = forwardRef<
           <StrategySentenceCard draft={draft} onReset={resetAll} compact />
 
           <div className="flex flex-col gap-5 rounded-2xl border border-border-subtle bg-card p-5">
+            <p className="font-cap text-[11px] font-semibold uppercase tracking-[0.2em] text-gold-deep">Test it on</p>
             <label className="flex flex-col gap-2">
               <span className="font-cap text-xs font-semibold uppercase tracking-wide text-fg-muted">Symbol</span>
               <input value={backtestSymbol} onChange={(e) => setBacktestSymbol(e.target.value.toUpperCase())} className={inputCls} placeholder="AAPL" />

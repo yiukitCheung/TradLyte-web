@@ -27,6 +27,7 @@ import type {
   IndicatorId,
   CompareOperator,
   ConditionOperand,
+  SetupCondition,
   ExitRuleSpec,
   ExitLeafKind,
 } from "@/lib/strategyDraft";
@@ -37,6 +38,9 @@ import {
   INDICATORS,
   indicatorMeta,
   defaultSetupCondition,
+  priceOperand,
+  valueOperand,
+  indicatorOperand,
   SETUP_TILES,
   TIMEFRAMES,
   timeframeLabel,
@@ -86,6 +90,100 @@ const EXIT_ICONS: Record<string, LucideIcon> = {
 
 const selectCls = "rounded-xl border border-border-strong bg-card px-3 py-2.5 text-[15px] text-fg-primary outline-none focus:border-ink";
 const numCls = "w-24 rounded-xl border border-border-strong bg-card px-3 py-2.5 text-center font-serif text-lg text-fg-primary outline-none focus:border-ink";
+
+// ---------------------------------------------------------------------------
+// Parameter education — plain-language readings per indicator tile, plus a
+// live translation of whatever condition is currently configured.
+// ---------------------------------------------------------------------------
+
+/** What each indicator measures, in its own words — shown atop its editor. */
+const TILE_EDITOR_COPY: Record<string, { question: string; explain: string }> = {
+  EMA: {
+    question: "Where does price stand vs its recent average?",
+    explain: "An EMA weights recent days more — price above it means the short-term trend leans up.",
+  },
+  SMA: {
+    question: "Where does price stand vs its long average?",
+    explain: "An SMA treats every day equally — the classic health line for a stock.",
+  },
+  MACD: {
+    question: "Which way is momentum leaning?",
+    explain: "MACD compares a fast and a slow average — flipping above its signal line marks momentum turning up.",
+  },
+  BB: {
+    question: "Is price stretched, or breaking out?",
+    explain: "Bollinger Bands hug price two standard deviations wide — touching a band means stretched, piercing it means force.",
+  },
+  STOCH: {
+    question: "Is the stock washed out, or waking up?",
+    explain: "Stochastic reads where price sits inside its recent range, 0–100 — under 20 is oversold territory.",
+  },
+  ATR: {
+    question: "How rough is the ride right now?",
+    explain: "ATR is the average daily range in dollars — bigger means wilder swings, smaller means a calm tape.",
+  },
+  custom: {
+    question: "Write your own condition",
+    explain: "Compare any indicator to a number or to another indicator — one clean rule.",
+  },
+};
+
+/** Common readings per tile — each chip sets a complete, runnable condition. */
+const CONDITION_PRESETS: Record<string, { label: string; condition: SetupCondition }[]> = {
+  EMA: [
+    { label: "Fresh break above the 21-day", condition: { left: priceOperand(), operator: "CROSS_ABOVE", right: indicatorOperand("EMA", 21) } },
+    { label: "Holding above the 21-day", condition: { left: priceOperand(), operator: ">", right: indicatorOperand("EMA", 21) } },
+    { label: "Above the slow 55-day", condition: { left: priceOperand(), operator: ">", right: indicatorOperand("EMA", 55) } },
+  ],
+  SMA: [
+    { label: "Fresh break above the 50-day", condition: { left: priceOperand(), operator: "CROSS_ABOVE", right: indicatorOperand("SMA", 50) } },
+    { label: "Above the 20-day", condition: { left: priceOperand(), operator: ">", right: indicatorOperand("SMA", 20) } },
+    { label: "Above the 200-day health line", condition: { left: priceOperand(), operator: ">", right: indicatorOperand("SMA", 200) } },
+  ],
+  MACD: [
+    { label: "Fresh momentum flip", condition: { left: indicatorOperand("MACD", 0, "macd"), operator: "CROSS_ABOVE", right: indicatorOperand("MACD", 0, "signal") } },
+    { label: "Momentum already positive", condition: { left: indicatorOperand("MACD", 0, "macd"), operator: ">", right: indicatorOperand("MACD", 0, "signal") } },
+    { label: "Histogram above zero", condition: { left: indicatorOperand("MACD", 0, "hist"), operator: ">", right: valueOperand(0) } },
+  ],
+  BB: [
+    { label: "Dip below the lower band", condition: { left: priceOperand(), operator: "CROSS_BELOW", right: indicatorOperand("BB", 20, "lower") } },
+    { label: "Snap back through the middle", condition: { left: priceOperand(), operator: "CROSS_ABOVE", right: indicatorOperand("BB", 20, "middle") } },
+    { label: "Break above the upper band", condition: { left: priceOperand(), operator: "CROSS_ABOVE", right: indicatorOperand("BB", 20, "upper") } },
+  ],
+  STOCH: [
+    { label: "Washed out — %K under 20", condition: { left: indicatorOperand("STOCH", 14, "k"), operator: "<", right: valueOperand(20) } },
+    { label: "Turning up from oversold", condition: { left: indicatorOperand("STOCH", 14, "k"), operator: "CROSS_ABOVE", right: valueOperand(20) } },
+    { label: "%K overtakes %D", condition: { left: indicatorOperand("STOCH", 14, "k"), operator: "CROSS_ABOVE", right: indicatorOperand("STOCH", 14, "d") } },
+  ],
+  ATR: [
+    { label: "Volatility expanding", condition: { left: indicatorOperand("ATR", 14), operator: ">", right: indicatorOperand("ATR", 50) } },
+    { label: "Volatility calming down", condition: { left: indicatorOperand("ATR", 14), operator: "<", right: indicatorOperand("ATR", 50) } },
+  ],
+};
+
+const OP_PROSE: Record<string, string> = {
+  ">": "is above",
+  "<": "is below",
+  ">=": "is at or above",
+  "<=": "is at or below",
+  "==": "equals",
+  CROSS_ABOVE: "crosses above",
+  CROSS_BELOW: "crosses below",
+};
+
+function operandProse(o: ConditionOperand): string {
+  if (o.kind === "price") return "price";
+  if (o.kind === "value") return String(o.value);
+  const meta = indicatorMeta(o.indicator);
+  const out = meta.outputs?.find((x) => x.value === o.output)?.label;
+  if (out) return `the ${out.startsWith("%") ? out : out.toLowerCase()}`;
+  return meta.hasPeriod ? `the ${o.period}-day ${o.indicator}` : o.indicator;
+}
+
+/** English rendering of the active condition — the live "meaning line". */
+function describeCondition(c: SetupCondition): string {
+  return `${operandProse(c.left)} ${OP_PROSE[c.operator] ?? c.operator} ${operandProse(c.right)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Shared bits
@@ -217,13 +315,13 @@ function OperandEditor({
   );
 }
 
-function ConditionBuilder({ draft, patchSetup }: { draft: StrategyDraft; patchSetup: PatchSetup }) {
+function ConditionBuilder({ draft, patchSetup, label }: { draft: StrategyDraft; patchSetup: PatchSetup; label?: string }) {
   const cond = draft.setup.condition ?? defaultSetupCondition();
   const setCond = (next: Partial<typeof cond>) =>
     patchSetup({ mode: "indicator", kind: "indicator", condition: { ...cond, ...next } });
   return (
     <div className="flex flex-col gap-3">
-      <span className="font-cap text-xs uppercase tracking-wide text-fg-muted">Enter when</span>
+      <span className="font-cap text-xs uppercase tracking-wide text-fg-muted">{label ?? "Enter when"}</span>
       <OperandEditor operand={cond.left} onChange={(left) => setCond({ left })} allowPrice />
       <select value={cond.operator} onChange={(e) => setCond({ operator: e.target.value as CompareOperator })} className={cn(selectCls, "w-fit")}>
         {OPERATORS.map((o) => (
@@ -317,6 +415,9 @@ export function SetupPanel({
       return (
         <EditorShell>
           <p className="font-serif text-xl text-fg-primary">When is momentum strong enough?</p>
+          <p className="mt-1.5 text-[14px] leading-relaxed text-fg-secondary">
+            RSI scores the last 14 days of gains against losses, 0–100 — above 50 means buyers have the upper hand.
+          </p>
           <div className="mt-5 flex flex-wrap gap-3">
             {[
               { label: "Balanced (above 50)", threshold: 50 },
@@ -373,9 +474,39 @@ export function SetupPanel({
         </EditorShell>
       );
     }
+    const copy = TILE_EDITOR_COPY[activeTile];
+    const presets = CONDITION_PRESETS[activeTile] ?? [];
+    const cond = draft.setup.condition ?? defaultSetupCondition();
+    const isPreset = (p: { condition: SetupCondition }) => JSON.stringify(cond) === JSON.stringify(p.condition);
     return (
       <EditorShell>
-        <ConditionBuilder draft={draft} patchSetup={patchSetup} />
+        {copy && (
+          <>
+            <p className="font-serif text-xl text-fg-primary">{copy.question}</p>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-fg-secondary">{copy.explain}</p>
+          </>
+        )}
+        {presets.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-2.5">
+            {presets.map((p) => (
+              <Chip
+                key={p.label}
+                label={p.label}
+                selected={isPreset(p)}
+                onClick={() => patchSetup({ mode: "indicator", kind: "indicator", condition: p.condition })}
+              />
+            ))}
+          </div>
+        )}
+        <div className={cn(presets.length > 0 ? "mt-6 border-t border-border-subtle pt-5" : "mt-5")}>
+          <ConditionBuilder draft={draft} patchSetup={patchSetup} label={presets.length > 0 ? "Fine-tune" : "Enter when"} />
+          <p className="mt-4 text-[13px] leading-relaxed text-fg-secondary">
+            In plain terms: days qualify when <span className="font-medium text-fg-primary">{describeCondition(cond)}</span>.
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-fg-muted">
+            Lookback periods: shorter reacts faster but whipsaws more; longer is calmer but slower to turn.
+          </p>
+        </div>
         <MultiTimeframe draft={draft} patchSetup={patchSetup} />
       </EditorShell>
     );
@@ -383,23 +514,18 @@ export function SetupPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
-          Choose a setup condition · hover a tile to see what it means
-        </p>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-6">
-          {SETUP_TILES.map((t) => (
-            <IndicatorTile
-              key={t.key}
-              label={t.label}
-              termKey={t.term}
-              explainerKind={explainerKindForSetupTile(t.key)}
-              Icon={SETUP_ICONS[t.key]}
-              selected={activeTile === t.key}
-              onClick={() => onSelectTile(t.key)}
-            />
-          ))}
-        </div>
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-6">
+        {SETUP_TILES.map((t) => (
+          <IndicatorTile
+            key={t.key}
+            label={t.label}
+            termKey={t.term}
+            explainerKind={explainerKindForSetupTile(t.key)}
+            Icon={SETUP_ICONS[t.key]}
+            selected={activeTile === t.key}
+            onClick={() => onSelectTile(t.key)}
+          />
+        ))}
       </div>
       {editor()}
     </div>
@@ -611,23 +737,18 @@ export function ExitPanel({ draft, patchExit }: { draft: StrategyDraft; patchExi
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <p className="font-cap text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
-          Choose how a trade closes · hover a tile to see what it means
-        </p>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-6">
-          {EXIT_TILES.map((t) => (
-            <IndicatorTile
-              key={t.key}
-              label={t.label}
-              termKey={t.term}
-              explainerKind={explainerKindForExitMode(t.key)}
-              Icon={EXIT_ICONS[t.key]}
-              selected={mode === t.key}
-              onClick={() => patchExit({ mode: t.key })}
-            />
-          ))}
-        </div>
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-6">
+        {EXIT_TILES.map((t) => (
+          <IndicatorTile
+            key={t.key}
+            label={t.label}
+            termKey={t.term}
+            explainerKind={explainerKindForExitMode(t.key)}
+            Icon={EXIT_ICONS[t.key]}
+            selected={mode === t.key}
+            onClick={() => patchExit({ mode: t.key })}
+          />
+        ))}
       </div>
       {editor()}
     </div>

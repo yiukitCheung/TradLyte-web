@@ -60,10 +60,10 @@ export default function StrategyLab() {
     <LessonDrawerProvider>
       <div className="flex min-h-screen flex-col bg-surface-primary">
         <Header />
-        <main className="mx-auto w-full max-w-[1320px] flex-1 px-6 pb-24 pt-16 md:px-12 md:pt-24">
+        <main className="mx-auto w-full max-w-[1320px] flex-1 px-6 pb-24 pt-10 md:px-12 md:pt-14">
           <p className="font-cap text-sm uppercase tracking-[0.18em] text-gold-deep">Strategy lab</p>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-            <h1 className="max-w-[680px] font-serif text-[38px] font-medium leading-[1.08] text-fg-primary md:text-[48px]">
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+            <h1 className="max-w-[680px] font-serif text-[30px] font-medium leading-[1.1] text-fg-primary md:text-[38px]">
               Compose a strategy, replay it on real history.
             </h1>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -87,7 +87,7 @@ export default function StrategyLab() {
           </div>
 
           {/* Tabs */}
-          <div className="mt-8 flex w-fit items-center gap-1 rounded-full border border-border-subtle bg-card p-1">
+          <div className="mt-6 flex w-fit items-center gap-1 rounded-full border border-border-subtle bg-card p-1">
             {(
               [
                 ["single", "Single test", FlaskConical],
@@ -109,7 +109,7 @@ export default function StrategyLab() {
           </div>
 
           {/* Panels — both mounted; toggle with hidden to preserve in-progress state */}
-          <div className="mt-8">
+          <div className="mt-6">
             <div className={tab === "single" ? "" : "hidden"}>
               <SingleTestPanel
                 ref={singleRef}
